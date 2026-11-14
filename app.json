@@ -16,6 +16,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "BirdSong uses compass heading while you scan to estimate the direction of sound. Your location is not stored."
+        }
+      ],
+      [
         "expo-audio",
         {
           "microphonePermission": "BirdSong uses the microphone to record birdsong so it can identify the species you hear."
