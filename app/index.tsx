@@ -488,7 +488,6 @@ export default function HomeScreen() {
         onPress={playBirdRhythm}
         disabled={status !== "done"}
       />
-      <Button title="Test Buzz" onPress={() => Vibration.vibrate()} />
     </ScrollView>
   );
 }
