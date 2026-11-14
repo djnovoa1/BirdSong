@@ -3,6 +3,9 @@ export const colors = {
   text: '#11181C',
   muted: '#687076',
   primary: '#2F7D5B',
+  recording: '#C2410C',
+  surface: '#F1F3F5',
+  error: '#B91C1C',
 };
 
 export const spacing = {
