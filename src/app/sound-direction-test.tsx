@@ -214,6 +214,11 @@ export default function SoundDirectionScreen() {
     ? bestBin.index * BIN_SIZE
     : null;
 
+  const directionToTarget =
+    bestDirection !== null && heading !== null
+      ? ((bestDirection - heading + 540) % 360) - 180
+      : null;
+
   const visitedBins = bins.filter((bin) => bin.count > 0).length;
   const progress = (visitedBins / BIN_COUNT) * 100;
 
@@ -283,6 +288,36 @@ export default function SoundDirectionScreen() {
           {bestBin
             ? `${bestBin.count} measurements in this direction`
             : 'Rotate your phone to collect measurements'}
+        </Text>
+      </View>
+
+      {/* Arrow points from the phone's current facing toward the detected bearing */}
+      <View style={styles.card}>
+        <Text style={styles.label}>TURN TOWARD THE SOUND</Text>
+
+        <View style={styles.arrowCircle}>
+          <Text
+            style={[
+              styles.arrow,
+              directionToTarget !== null && {
+                transform: [{ rotate: `${directionToTarget}deg` }],
+              },
+            ]}
+          >
+            {directionToTarget === null ? '·' : '↑'}
+          </Text>
+        </View>
+
+        <Text style={styles.direction}>
+          {directionToTarget === null
+            ? 'Collect sound readings first'
+            : Math.abs(directionToTarget) <= 8
+              ? 'You are facing the predicted direction'
+              : `Turn ${Math.abs(Math.round(directionToTarget))}° ${directionToTarget > 0 ? 'right' : 'left'}`}
+        </Text>
+
+        <Text style={styles.smallText}>
+          The arrow points toward the strongest direction measured so far.
         </Text>
       </View>
 
@@ -392,6 +427,23 @@ const styles = StyleSheet.create({
     padding: 24,
     marginBottom: 15,
     alignItems: 'center',
+  },
+  arrowCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginTop: 18,
+    marginBottom: 14,
+    backgroundColor: '#153C36',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  arrow: {
+    color: '#54D6A0',
+    fontSize: 82,
+    lineHeight: 92,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   resultNumber: {
     fontSize: 54,
