@@ -89,6 +89,21 @@ export default function HomeScreen() {
     return bestIndex < 0 ? null : bestIndex * BIN_SIZE;
   }, [bins]);
 
+  const visitedBins = bins.filter((bin) => bin.samples > 0).length;
+  const missingDirections = bins.flatMap((bin, index) =>
+    bin.samples > 0 ? [] : [`${directionName(index * BIN_SIZE)} (${index * BIN_SIZE}°)`],
+  );
+  const coveragePoints = bins.map((bin, index) => {
+    const angle = ((index * BIN_SIZE - (heading ?? 0) - 90) * Math.PI) / 180;
+    const radius = 86;
+    return {
+      index,
+      left: 110 + Math.cos(angle) * radius,
+      top: 110 + Math.sin(angle) * radius,
+      sampled: bin.samples > 0,
+    };
+  });
+
   async function startListening() {
     setError(null);
     setSpecies([]);
@@ -189,6 +204,20 @@ export default function HomeScreen() {
               <Text style={[styles.cardinal, styles.south]}>S</Text>
               <Text style={[styles.cardinal, styles.west]}>W</Text>
               <View style={styles.compassInner} />
+              {coveragePoints.map(({ index, left, top, sampled }) => (
+                <View
+                  key={`coverage-${index}`}
+                  style={[
+                    styles.coverageDot,
+                    {
+                      left,
+                      top,
+                      backgroundColor: sampled ? '#54D6A0' : '#294A40',
+                      borderColor: sampled ? '#A7F3D0' : '#78988A',
+                    },
+                  ]}
+                />
+              ))}
             </View>
             {loudestBearing !== null && heading !== null ? (
               <Text style={[styles.arrow, { transform: [{ rotate: `${arrowRotation}deg` }] }]}>↑</Text>
@@ -204,6 +233,14 @@ export default function HomeScreen() {
                 : compassAccuracy === 0
                   ? 'Compass needs calibration. Move your phone in a figure eight.'
                   : 'Turn the phone toward the sound; the arrow updates from the loudest direction heard.'}
+          </Text>
+          <Text style={styles.coverageCount}>{visitedBins} / {BIN_COUNT} directions sampled</Text>
+          <Text style={styles.coverageDetail}>
+            {Platform.OS === 'web'
+              ? 'Direction coverage appears when scanning on a phone.'
+              : missingDirections.length === 0
+                ? 'Full 360° range sampled'
+                : `Still need: ${missingDirections.slice(0, 6).join(', ')}${missingDirections.length > 6 ? ` +${missingDirections.length - 6} more` : ''}`}
           </Text>
         </View>
 
@@ -275,14 +312,17 @@ const styles = StyleSheet.create({
   sectionLabel: { color: colors.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
   bearing: { color: '#FFFFFF', fontSize: 23, fontWeight: '700', marginTop: 4 },
   phoneHeading: { color: '#C5D8CE', fontSize: 11, fontWeight: '700' },
-  compass: { width: 190, height: 190, borderRadius: 95, borderWidth: 1, borderColor: '#658478', backgroundColor: '#204C3E', marginTop: spacing.md, alignItems: 'center', justifyContent: 'center' },
+  compass: { width: 220, height: 220, borderRadius: 110, borderWidth: 1, borderColor: '#658478', backgroundColor: '#204C3E', marginTop: spacing.md, alignItems: 'center', justifyContent: 'center' },
   dial: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   compassInner: { position: 'absolute', width: 132, height: 132, borderRadius: 66, borderWidth: 1, borderColor: '#527566' },
-  cardinal: { position: 'absolute', color: '#D8E8DF', fontSize: 11, fontWeight: '800' },
+  cardinal: { position: 'absolute', color: '#D8E8DF', fontSize: 11, fontWeight: '800', zIndex: 2 },
   north: { top: 9 }, east: { right: 12 }, south: { bottom: 9 }, west: { left: 12 },
+  coverageDot: { position: 'absolute', width: 12, height: 12, borderRadius: 6, borderWidth: 2, marginLeft: -6, marginTop: -6, zIndex: 2 },
   arrow: { position: 'absolute', color: '#F4C86A', fontSize: 74, lineHeight: 84, fontWeight: '500', textAlign: 'center', textAlignVertical: 'center' },
   compassDot: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: '#F4C86A' },
   compassHint: { color: '#D0DED7', fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: spacing.md, maxWidth: 330 },
+  coverageCount: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', marginTop: spacing.sm },
+  coverageDetail: { color: '#D0DED7', fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 4, maxWidth: 340 },
   listenCard: { backgroundColor: '#F1F3F5', borderRadius: 20, padding: spacing.md },
   listenTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   timer: { color: colors.text, fontSize: 36, fontWeight: '300', fontVariant: ['tabular-nums'], marginTop: 4 },
