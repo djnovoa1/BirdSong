@@ -253,24 +253,68 @@ export default function SoundDirectionScreen() {
         Rotate your phone to find where a sound is coming from.
       </Text>
 
-      {/* Current compass heading */}
+      {/* Direction coverage and detected sound direction */}
       <View style={styles.card}>
-        <Text style={styles.label}>PHONE HEADING</Text>
+        <Text style={styles.label}>MISSING DIRECTIONS</Text>
 
-        <Text style={styles.bigNumber}>
-          {heading !== null ? `${Math.round(heading)}°` : '--'}
-        </Text>
+        <View style={styles.coverageMapWrap}>
+          <View style={styles.coverageRing}>
+            <View style={styles.coverageFrontMarker} />
 
-        <Text style={styles.direction}>
-          {heading !== null
-            ? getDirectionName(heading)
-            : 'Waiting for compass'}
-        </Text>
+            {bestDirection !== null &&
+              heading !== null && (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.coverageArrowLayer,
+                    {
+                      transform: [
+                        { rotate: `${bestDirection - heading}deg` },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.coverageArrowHead} />
+                  <View style={styles.coverageArrowStem} />
+                </View>
+              )}
+
+            {coveragePoints.map(({ index, left, top, sampled }) => (
+              <View
+                key={`coverage-${index}`}
+                style={[
+                  styles.coverageDot,
+                  {
+                    left,
+                    top,
+                    backgroundColor: sampled ? '#54D6A0' : '#3A4B5F',
+                    borderColor: sampled ? '#A7F3D0' : '#7A8AA0',
+                  },
+                ]}
+              />
+            ))}
+
+            <View style={styles.coverageCenter}>
+              <Text style={styles.coverageCenterText}>
+                {missingDirections.length}
+              </Text>
+            </View>
+          </View>
+        </View>
 
         <Text style={styles.smallText}>
-          Compass accuracy: {compassAccuracy}
-          {' '}
-          (3 = high, 2 = medium, 1 = low, 0 = poor)
+          {bestDirection === null
+            ? 'Blue marker shows the direction you are facing. Collect at least 2 readings in a direction to show the strongest direction.'
+            : 'Blue marker shows your facing direction; the arrow points toward the strongest detected direction.'}
+        </Text>
+        <Text style={styles.smallText}>
+          {missingDirections.length === 0
+            ? 'Full 360° range sampled'
+            : missingDirections.length <= 8
+              ? `Still need: ${missingDirections.join(', ')}`
+              : `Still need: ${missingDirections
+                  .slice(0, 8)
+                  .join(', ')} +${missingDirections.length - 8} more`}
         </Text>
       </View>
 
@@ -289,72 +333,50 @@ export default function SoundDirectionScreen() {
         </Text>
       </View>
 
-      {/* Detected direction */}
-      <View style={styles.resultCard}>
-        <Text style={styles.label}>STRONGEST DETECTED DIRECTION</Text>
+      {/* Phone heading and strongest detected direction */}
+      <View style={styles.card}>
+        <View style={styles.directionInfoRow}>
+          <View style={styles.directionInfoColumn}>
+            <Text style={styles.label}>PHONE HEADING</Text>
+            <Text style={styles.directionInfoNumber}>
+              {heading !== null ? `${Math.round(heading)}°` : '--'}
+            </Text>
+            <Text style={styles.direction}>
+              {heading !== null
+                ? getDirectionName(heading)
+                : 'Waiting for compass'}
+            </Text>
+            <Text style={styles.smallText}>
+              Compass accuracy: {compassAccuracy}
+              {' '}
+              (3 = high, 2 = medium, 1 = low, 0 = poor)
+            </Text>
+          </View>
 
-        <Text style={styles.resultNumber}>
-          {bestDirection !== null
-            ? `${bestDirection}°`
-            : '--'}
-        </Text>
+          <View style={styles.directionInfoDivider} />
 
-        <Text style={styles.resultDirection}>
-          {bestDirection !== null
-            ? getDirectionName(bestDirection)
-            : 'No result yet'}
-        </Text>
-
-        <Text style={styles.smallText}>
-          {bestBin
-            ? `${bestBin.count} measurements in this direction`
-            : 'Rotate your phone to collect measurements'}
-        </Text>
+          <View style={styles.directionInfoColumn}>
+            <Text style={styles.label}>STRONGEST DETECTED</Text>
+            <Text style={styles.directionInfoNumber}>
+              {bestDirection !== null ? `${bestDirection}°` : '--'}
+            </Text>
+            <Text style={styles.direction}>
+              {bestDirection !== null
+                ? getDirectionName(bestDirection)
+                : 'No result yet'}
+            </Text>
+            <Text style={styles.smallText}>
+              {bestBin
+                ? `${bestBin.count} measurements`
+                : 'Rotate to collect measurements'}
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* Scan progress */}
       <View style={styles.card}>
         <Text style={styles.label}>DIRECTION COVERAGE</Text>
-          <View style={styles.card}>
-            <Text style={styles.label}>MISSING DIRECTIONS</Text>
-
-            <View style={styles.coverageMapWrap}>
-              <View style={styles.coverageRing}>
-                <View style={styles.coverageFrontMarker} />
-
-                {coveragePoints.map(({ index, left, top, sampled }) => (
-                  <View
-                    key={`coverage-${index}`}
-                    style={[
-                      styles.coverageDot,
-                      {
-                        left,
-                        top,
-                        backgroundColor: sampled ? '#54D6A0' : '#3A4B5F',
-                        borderColor: sampled ? '#A7F3D0' : '#7A8AA0',
-                      },
-                    ]}
-                  />
-                ))}
-
-                <View style={styles.coverageCenter}>
-                  <Text style={styles.coverageCenterText}>
-                    {missingDirections.length}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={styles.smallText}>
-              {missingDirections.length === 0
-                ? 'Full 360° range sampled'
-                : missingDirections.length <= 8
-                  ? `Still need: ${missingDirections.join(', ')}`
-                  : `Still need: ${missingDirections
-                      .slice(0, 8)
-                      .join(', ')} +${missingDirections.length - 8} more`}
-            </Text>
-          </View>
         <Text style={styles.progressText}>
           {visitedBins} / {BIN_COUNT} directions sampled
         </Text>
@@ -451,24 +473,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
-  resultCard: {
-    backgroundColor: '#153C36',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 15,
-    alignItems: 'center',
-  },
-  resultNumber: {
-    fontSize: 54,
-    fontWeight: 'bold',
-    color: '#54D6A0',
-    marginTop: 10,
-  },
-  resultDirection: {
-    color: 'white',
-    fontSize: 23,
-    fontWeight: 'bold',
-  },
   progressText: {
     color: 'white',
     marginTop: 12,
@@ -484,6 +488,27 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: '#54D6A0',
+  },
+  directionInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    width: '100%',
+  },
+  directionInfoColumn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  directionInfoDivider: {
+    width: 1,
+    backgroundColor: '#485C74',
+    marginHorizontal: 8,
+  },
+  directionInfoNumber: {
+    color: 'white',
+    fontSize: 34,
+    fontWeight: 'bold',
+    marginTop: 10,
   },
   button: {
     padding: 18,
@@ -517,7 +542,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
     textAlign: 'center',
   },
-    coverageMapWrap: {
+  coverageMapWrap: {
     width: '100%',
     alignItems: 'center',
     marginTop: 18,
@@ -543,6 +568,35 @@ const styles = StyleSheet.create({
     marginLeft: -6,
     marginTop: -6,
   },
+  coverageArrowLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 220,
+    height: 220,
+  },
+  coverageArrowHead: {
+    position: 'absolute',
+    top: 34,
+    left: 101,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 9,
+    borderRightWidth: 9,
+    borderBottomWidth: 14,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#FACC15',
+  },
+  coverageArrowStem: {
+    position: 'absolute',
+    top: 46,
+    left: 108,
+    width: 4,
+    height: 44,
+    borderRadius: 2,
+    backgroundColor: '#FACC15',
+  },
   coverageFrontMarker: {
     position: 'absolute',
     top: 8,
@@ -551,7 +605,7 @@ const styles = StyleSheet.create({
     height: 22,
     marginLeft: -2,
     borderRadius: 2,
-    backgroundColor: '#FACC15',
+    backgroundColor: '#38BDF8',
   },
   coverageCenter: {
     width: 58,
