@@ -219,6 +219,32 @@ export default function SoundDirectionScreen() {
 
   const currentLevel = recorderState.metering;
 
+  const headingOffset = heading ?? 0;
+
+  const coveragePoints = bins.map((bin, index) => {
+    const angleDegrees = index * BIN_SIZE - headingOffset - 90;
+    const radians = (angleDegrees * Math.PI) / 180;
+    const radius = 86;
+
+    return {
+      index,
+      left: 110 + Math.cos(radians) * radius,
+      top: 110 + Math.sin(radians) * radius,
+      sampled: bin.count > 0,
+    };
+  });
+
+  const missingDirections = bins
+    .map((bin, index) => ({
+      index,
+      sampled: bin.count > 0,
+    }))
+    .filter(({ sampled }) => !sampled)
+    .map(({ index }) => {
+      const degrees = index * BIN_SIZE;
+      return `${getDirectionName(degrees)} (${Math.round(degrees)}°)`;
+    });
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Sound Direction Tester</Text>
@@ -289,7 +315,46 @@ export default function SoundDirectionScreen() {
       {/* Scan progress */}
       <View style={styles.card}>
         <Text style={styles.label}>DIRECTION COVERAGE</Text>
+          <View style={styles.card}>
+            <Text style={styles.label}>MISSING DIRECTIONS</Text>
 
+            <View style={styles.coverageMapWrap}>
+              <View style={styles.coverageRing}>
+                <View style={styles.coverageFrontMarker} />
+
+                {coveragePoints.map(({ index, left, top, sampled }) => (
+                  <View
+                    key={`coverage-${index}`}
+                    style={[
+                      styles.coverageDot,
+                      {
+                        left,
+                        top,
+                        backgroundColor: sampled ? '#54D6A0' : '#3A4B5F',
+                        borderColor: sampled ? '#A7F3D0' : '#7A8AA0',
+                      },
+                    ]}
+                  />
+                ))}
+
+                <View style={styles.coverageCenter}>
+                  <Text style={styles.coverageCenterText}>
+                    {missingDirections.length}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.smallText}>
+              {missingDirections.length === 0
+                ? 'Full 360° range sampled'
+                : missingDirections.length <= 8
+                  ? `Still need: ${missingDirections.join(', ')}`
+                  : `Still need: ${missingDirections
+                      .slice(0, 8)
+                      .join(', ')} +${missingDirections.length - 8} more`}
+            </Text>
+          </View>
         <Text style={styles.progressText}>
           {visitedBins} / {BIN_COUNT} directions sampled
         </Text>
@@ -451,5 +516,56 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginTop: 15,
     textAlign: 'center',
+  },
+    coverageMapWrap: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  coverageRing: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 2,
+    borderColor: '#485C74',
+    backgroundColor: '#182334',
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coverageDot: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    marginLeft: -6,
+    marginTop: -6,
+  },
+  coverageFrontMarker: {
+    position: 'absolute',
+    top: 8,
+    left: '50%',
+    width: 4,
+    height: 22,
+    marginLeft: -2,
+    borderRadius: 2,
+    backgroundColor: '#FACC15',
+  },
+  coverageCenter: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#54D6A0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coverageCenterText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 18,
   },
 });
