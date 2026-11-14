@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "BirdSong",
+    "slug": "birdsong",
+    "version": "0.1.0",
+    "scheme": "birdsong",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.birdsong"
+    },
+    "android": {
+      "package": "com.example.birdsong"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
