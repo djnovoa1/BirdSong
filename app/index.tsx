@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing } from '@/constants/theme';
-import { detectBirds, type Species } from '@/services/birdnet';
+import { checkBackendHealth, detectBirds, getApiUrl, type Species } from '@/services/birdnet';
 
 const MIN_RECORDING_MS = 3000;
 const BIN_SIZE = 15;
@@ -49,6 +49,9 @@ export default function HomeScreen() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [heading, setHeading] = useState<number | null>(null);
   const [compassAccuracy, setCompassAccuracy] = useState<number | null>(null);
+  const [savedBearing, setSavedBearing] = useState<number | null>(null);
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'ready' | 'offline'>('checking');
+  const [analysisElapsed, setAnalysisElapsed] = useState(0);
   const [bins, setBins] = useState<SoundBin[]>(createBins);
   const binsRef = useRef<SoundBin[]>(createBins());
   const headingRef = useRef<number | null>(null);
@@ -56,6 +59,32 @@ export default function HomeScreen() {
 
   const isRecording = status === 'recording';
   const isAnalyzing = status === 'analyzing';
+
+  useEffect(() => {
+    let isMounted = true;
+    const check = async () => {
+      const ready = await checkBackendHealth();
+      if (isMounted) setBackendStatus(ready ? 'ready' : 'offline');
+    };
+    void check();
+    const interval = setInterval(() => void check(), 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAnalyzing) return;
+    const interval = setInterval(() => setAnalysisElapsed((seconds) => seconds + 1), 1000);
+    return () => clearInterval(interval);
+  }, [isAnalyzing]);
+
+  async function refreshBackend() {
+    setBackendStatus('checking');
+    const ready = await checkBackendHealth();
+    setBackendStatus(ready ? 'ready' : 'offline');
+  }
 
   useEffect(() => {
     if (!isRecording || Platform.OS === 'web') return;
@@ -111,9 +140,7 @@ export default function HomeScreen() {
     const freshBins = createBins();
     binsRef.current = freshBins;
     setBins(freshBins);
-    setHeading(null);
-    headingRef.current = null;
-    setCompassAccuracy(null);
+    setSavedBearing(null);
 
     try {
       const permission = await requestRecordingPermissionsAsync();
@@ -124,7 +151,7 @@ export default function HomeScreen() {
         return;
       }
 
-      if (Platform.OS !== 'web') {
+      if (Platform.OS !== 'web' && !subscriptionRef.current) {
         const locationPermission = await Location.requestForegroundPermissionsAsync();
         if (locationPermission.granted) {
           subscriptionRef.current = await Location.watchHeadingAsync((reading) => {
@@ -151,10 +178,9 @@ export default function HomeScreen() {
 
   async function stopAndIdentify() {
     const durationMs = recorderState.durationMillis;
+    setSavedBearing(loudestBearing);
     try {
       await recorder.stop();
-      subscriptionRef.current?.remove();
-      subscriptionRef.current = null;
       await setAudioModeAsync({ allowsRecording: false });
 
       if (durationMs < MIN_RECORDING_MS) {
@@ -165,6 +191,7 @@ export default function HomeScreen() {
       const uri = recorder.uri;
       if (!uri) throw new Error('The recording could not be saved. Please try again.');
 
+      setAnalysisElapsed(0);
       setStatus('analyzing');
       const result = await detectBirds(uri);
       setSpecies(result.species);
@@ -175,18 +202,39 @@ export default function HomeScreen() {
     }
   }
 
-  const arrowRotation = loudestBearing !== null && heading !== null ? loudestBearing - heading : 0;
-  const compassLabel = loudestBearing === null
+  const displayedBearing = isRecording ? loudestBearing : savedBearing ?? loudestBearing;
+  const arrowRotation = displayedBearing !== null && heading !== null ? displayedBearing - heading : 0;
+  const cardinalCounterRotation = { transform: [{ rotate: `${heading ?? 0}deg` }] };
+  const compassLabel = displayedBearing === null
     ? 'Rotate slowly while listening'
-    : `${directionName(loudestBearing)} · ${Math.round(loudestBearing)}°`;
+    : `${directionName(displayedBearing)} · ${Math.round(displayedBearing)}°`;
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>FIELD LISTENING</Text>
-          <Text style={styles.title}>BirdSong</Text>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.eyebrow}>FIELD LISTENING</Text>
+              <Text style={styles.title}>BirdSong</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Check BirdNET server connection"
+              onPress={refreshBackend}
+              style={[
+                styles.serverPill,
+                backendStatus === 'ready' ? styles.serverReady : backendStatus === 'offline' ? styles.serverOffline : styles.serverChecking,
+              ]}
+            >
+              <View style={[styles.serverDot, backendStatus === 'ready' ? styles.serverDotReady : backendStatus === 'offline' ? styles.serverDotOffline : styles.serverDotChecking]} />
+              <Text style={styles.serverText}>{backendStatus === 'ready' ? 'BirdNET ready' : backendStatus === 'offline' ? 'Server offline · tap to retry' : 'Checking server…'}</Text>
+            </Pressable>
+          </View>
           <Text style={styles.subtitle}>Listen for a bird. Find the direction.</Text>
+          {backendStatus === 'offline' && (
+            <Text style={styles.serverHelp}>Start the BirdSong backend on your computer. This app is checking {getApiUrl()}.</Text>
+          )}
         </View>
 
         <View style={styles.compassCard}>
@@ -199,10 +247,10 @@ export default function HomeScreen() {
           </View>
           <View style={styles.compass} accessibilityLabel={`Estimated sound direction: ${compassLabel}`}>
             <View style={[styles.dial, { transform: [{ rotate: `${-(heading ?? 0)}deg` }] }]}>
-              <Text style={[styles.cardinal, styles.north]}>N</Text>
-              <Text style={[styles.cardinal, styles.east]}>E</Text>
-              <Text style={[styles.cardinal, styles.south]}>S</Text>
-              <Text style={[styles.cardinal, styles.west]}>W</Text>
+              <Text style={[styles.cardinal, styles.north, cardinalCounterRotation]}>N</Text>
+              <Text style={[styles.cardinal, styles.east, cardinalCounterRotation]}>E</Text>
+              <Text style={[styles.cardinal, styles.south, cardinalCounterRotation]}>S</Text>
+              <Text style={[styles.cardinal, styles.west, cardinalCounterRotation]}>W</Text>
               <View style={styles.compassInner} />
               {coveragePoints.map(({ index, left, top, sampled }) => (
                 <View
@@ -232,6 +280,8 @@ export default function HomeScreen() {
                 ? 'Allow compass access, then slowly turn in place as you listen.'
                 : compassAccuracy === 0
                   ? 'Compass needs calibration. Move your phone in a figure eight.'
+                : savedBearing !== null
+                  ? 'Direction saved. Turn the phone and follow the arrow back to where the sound came from.'
                   : 'Turn the phone toward the sound; the arrow updates from the loudest direction heard.'}
           </Text>
           <Text style={styles.coverageCount}>{visitedBins} / {BIN_COUNT} directions sampled</Text>
@@ -253,7 +303,7 @@ export default function HomeScreen() {
             {isRecording && <View style={styles.livePill}><View style={styles.liveDot} /><Text style={styles.liveText}>LISTENING</Text></View>}
           </View>
           <Text style={styles.listenHint}>
-            {isRecording ? 'Turn slowly through a full circle, then stop to identify.' : isAnalyzing ? 'BirdNET is analyzing your recording…' : 'Record at least 3 seconds. A longer, slow scan helps estimate direction.'}
+            {isRecording ? 'Turn slowly through a full circle, then stop to identify.' : isAnalyzing ? `BirdNET is analyzing your recording · ${analysisElapsed}s` : 'Record at least 3 seconds. A longer, slow scan helps estimate direction.'}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -264,7 +314,7 @@ export default function HomeScreen() {
           >
             {isAnalyzing ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionText}>{isRecording ? 'Stop & identify' : 'Start listening'}</Text>}
           </Pressable>
-          {isAnalyzing && <Text style={styles.analyzingText}>This can take a little while on the first analysis.</Text>}
+          {isAnalyzing && <Text style={styles.analyzingText}>Keep this screen open while the recording is analyzed.</Text>}
         </View>
 
         {error && (
@@ -304,9 +354,20 @@ const styles = StyleSheet.create({
   page: { flexGrow: 1, backgroundColor: colors.background, paddingHorizontal: spacing.md, paddingVertical: spacing.lg },
   content: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: spacing.md },
   header: { paddingTop: spacing.sm, paddingBottom: spacing.xs },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   eyebrow: { color: colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 2 },
   title: { color: colors.text, fontSize: 34, fontWeight: '800', letterSpacing: -1, marginTop: 5 },
   subtitle: { color: colors.muted, fontSize: 15, marginTop: 4 },
+  serverPill: { maxWidth: 178, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 7 },
+  serverReady: { backgroundColor: '#E5F4EB' },
+  serverOffline: { backgroundColor: '#FCE8E3' },
+  serverChecking: { backgroundColor: '#EEF1F3' },
+  serverDot: { width: 7, height: 7, borderRadius: 4 },
+  serverDotReady: { backgroundColor: '#268653' },
+  serverDotOffline: { backgroundColor: colors.recording },
+  serverDotChecking: { backgroundColor: '#7A8388' },
+  serverText: { flexShrink: 1, color: colors.text, fontSize: 10, fontWeight: '700' },
+  serverHelp: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: spacing.xs },
   compassCard: { backgroundColor: '#173E32', borderRadius: 24, padding: spacing.md, alignItems: 'center' },
   cardHeading: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionLabel: { color: colors.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
