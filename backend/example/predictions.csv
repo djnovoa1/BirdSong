@@ -1,0 +1,22 @@
+input,start_time,end_time,species_name,confidence
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:00.00","00:00:03.00","Poecile atricapillus_Black-capped Chickadee",0.904193
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:03.00","00:00:06.00","Poecile atricapillus_Black-capped Chickadee",0.766960
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:03.00","00:00:06.00","Seiurus aurocapilla_Ovenbird",0.693387
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:06.00","00:00:09.00","Seiurus aurocapilla_Ovenbird",0.831240
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:06.00","00:00:09.00","Poecile atricapillus_Black-capped Chickadee",0.202391
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:12.00","00:00:15.00","Poecile atricapillus_Black-capped Chickadee",0.823786
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:15.00","00:00:18.00","Poecile gambeli_Mountain Chickadee",0.341764
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:15.00","00:00:18.00","Poecile atricapillus_Black-capped Chickadee",0.161146
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:18.00","00:00:21.00","Poecile atricapillus_Black-capped Chickadee",0.766031
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:21.00","00:00:24.00","Seiurus aurocapilla_Ovenbird",0.922298
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:21.00","00:00:24.00","Poecile atricapillus_Black-capped Chickadee",0.457991
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:24.00","00:00:27.00","Poecile atricapillus_Black-capped Chickadee",0.930702
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:27.00","00:00:30.00","Seiurus aurocapilla_Ovenbird",0.786237
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:27.00","00:00:30.00","Hyalinobatrachium valerioi_Hyalinobatrachium valerioi",0.198507
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:27.00","00:00:30.00","Poecile atricapillus_Black-capped Chickadee",0.122843
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:30.00","00:00:33.00","Poecile atricapillus_Black-capped Chickadee",0.568848
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:30.00","00:00:33.00","Seiurus aurocapilla_Ovenbird",0.524668
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:33.00","00:00:36.00","Poecile atricapillus_Black-capped Chickadee",0.752683
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:36.00","00:00:39.00","Poecile atricapillus_Black-capped Chickadee",0.914170
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:39.00","00:00:42.00","Poecile atricapillus_Black-capped Chickadee",0.838276
+"/Users/danielanovoa/Projects/BirdSong/backend/example/soundscape.wav","00:00:39.00","00:00:42.00","Seiurus aurocapilla_Ovenbird",0.826258
