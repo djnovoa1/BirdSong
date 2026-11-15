@@ -24,6 +24,11 @@ export type BackendHealth = {
 
 // The BirdSong backend (uvicorn), not the Expo dev server, which uses 8081.
 const API_PORT = 8000;
+const TAXONOMY_IMAGE_API = 'https://birdnet.cornell.edu/taxonomy/api/image';
+
+export function getSpeciesImageUrl(scientificName: string): string {
+  return `${TAXONOMY_IMAGE_API}/${encodeURIComponent(scientificName)}?size=medium`;
+}
 
 /**
  * Where the BirdSong backend lives.

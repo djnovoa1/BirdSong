@@ -5,6 +5,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from "expo-audio";
+import { Image } from "expo-image";
 import * as Location from "expo-location";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -27,6 +28,7 @@ import {
   checkBackendHealth,
   detectBirds,
   getApiUrl,
+  getSpeciesImageUrl,
   type Species,
 } from "@/services/birdnet";
 
@@ -75,6 +77,9 @@ export default function HomeScreen() {
   const recorderState = useAudioRecorderState(recorder, 25);
   const [status, setStatus] = useState<Status>("idle");
   const [species, setSpecies] = useState<Species[]>([]);
+  const [failedSpeciesImage, setFailedSpeciesImage] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [heading, setHeading] = useState<number | null>(null);
@@ -91,6 +96,11 @@ export default function HomeScreen() {
 
   const isRecording = status === "recording";
   const isAnalyzing = status === "analyzing";
+  const rankedSpecies = useMemo(
+    () => [...species].sort((a, b) => b.confidence - a.confidence),
+    [species],
+  );
+  const featuredSpecies = rankedSpecies[0] ?? null;
 
   const levelsRef = useRef<{ time: number; db: number }[]>([]);
   const playbackIdRef = useRef(0);
@@ -595,25 +605,73 @@ export default function HomeScreen() {
         {status === "done" && (
           <View style={styles.results}>
             <Text style={styles.sectionLabel}>BIRDS HEARD</Text>
-            {species.length === 0 ? (
+            {rankedSpecies.length === 0 ? (
               <Text style={styles.empty}>
                 No birds identified this time. Try a longer recording in a
                 quieter spot.
               </Text>
             ) : (
-              species.slice(0, 5).map((bird) => (
-                <View key={bird.scientific_name} style={styles.birdRow}>
-                  <View style={styles.birdText}>
-                    <Text style={styles.commonName}>{bird.common_name}</Text>
-                    <Text style={styles.scientificName}>
-                      {bird.scientific_name}
+              <>
+                {featuredSpecies && (
+                  <View style={styles.featuredBird}>
+                    {failedSpeciesImage === featuredSpecies.scientific_name ? (
+                      <View style={styles.featuredImageFallback}>
+                        <Text style={styles.featuredImageFallbackText}>
+                          Photo unavailable
+                        </Text>
+                      </View>
+                    ) : (
+                      <Image
+                        accessibilityLabel={`Photo of ${featuredSpecies.common_name}`}
+                        contentFit="cover"
+                        onError={() =>
+                          setFailedSpeciesImage(featuredSpecies.scientific_name)
+                        }
+                        source={{
+                          uri: getSpeciesImageUrl(
+                            featuredSpecies.scientific_name,
+                          ),
+                        }}
+                        style={styles.featuredImage}
+                        transition={180}
+                      />
+                    )}
+                    <View style={styles.featuredInfo}>
+                      <View style={styles.birdText}>
+                        <Text style={styles.featuredLabel}>TOP MATCH</Text>
+                        <Text style={styles.commonName}>
+                          {featuredSpecies.common_name}
+                        </Text>
+                        <Text style={styles.scientificName}>
+                          {featuredSpecies.scientific_name}
+                        </Text>
+                      </View>
+                      <Text style={styles.confidence}>
+                        {Math.round(featuredSpecies.confidence * 100)}%
+                      </Text>
+                    </View>
+                    <Text style={styles.imageCredit}>
+                      Photo via BirdNET Taxonomy
                     </Text>
                   </View>
-                  <Text style={styles.confidence}>
-                    {Math.round(bird.confidence * 100)}%
-                  </Text>
-                </View>
-              ))
+                )}
+                {rankedSpecies.length > 1 && (
+                  <Text style={styles.alsoHeardLabel}>ALSO HEARD</Text>
+                )}
+                {rankedSpecies.slice(1, 5).map((bird) => (
+                  <View key={bird.scientific_name} style={styles.birdRow}>
+                    <View style={styles.birdText}>
+                      <Text style={styles.commonName}>{bird.common_name}</Text>
+                      <Text style={styles.scientificName}>
+                        {bird.scientific_name}
+                      </Text>
+                    </View>
+                    <Text style={styles.confidence}>
+                      {Math.round(bird.confidence * 100)}%
+                    </Text>
+                  </View>
+                ))}
+              </>
             )}
             {loudestBearing !== null && Platform.OS !== "web" && (
               <Text style={styles.directionNote}>
@@ -884,6 +942,46 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   results: { gap: spacing.sm },
+  featuredBird: {
+    overflow: "hidden",
+    borderRadius: 18,
+    backgroundColor: "#F1F3F5",
+  },
+  featuredImage: { width: "100%", height: 210, backgroundColor: "#DDE9E2" },
+  featuredImageFallback: {
+    width: "100%",
+    height: 210,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#DDE9E2",
+  },
+  featuredImageFallbackText: { color: colors.muted, fontSize: 13 },
+  featuredInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  featuredLabel: {
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    marginBottom: 5,
+  },
+  imageCredit: {
+    color: colors.muted,
+    fontSize: 10,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  alsoHeardLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    marginTop: spacing.xs,
+  },
   birdRow: {
     flexDirection: "row",
     alignItems: "center",
