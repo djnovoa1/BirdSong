@@ -93,6 +93,9 @@ export default function HomeScreen() {
   const isAnalyzing = status === "analyzing";
 
   const levelsRef = useRef<{ time: number; db: number }[]>([]);
+  const playbackIdRef = useRef(0);
+  const activePlaybackRef = useRef(false);
+  const [isPlayingRhythm, setIsPlayingRhythm] = useState(false);
 
   useEffect(() => {
     if (status !== "recording") return;
@@ -282,63 +285,91 @@ export default function HomeScreen() {
     }
   }
 
-  const stopRequested = useRef(false);
-
-  async function stopBirdRhythm() {
-    stopRequested.current = true;
+  function stopBirdRhythm() {
+    playbackIdRef.current++;
+    activePlaybackRef.current = false;
+    setIsPlayingRhythm(false);
+    Vibration.cancel();
   }
 
   async function playBirdRhythm() {
-    stopRequested.current = false;
-    const levels = levelsRef.current;
+    if (activePlaybackRef.current || status !== "done") return;
+
+    const levels = levelsRef.current.filter(
+      (l) => Number.isFinite(l.time) && Number.isFinite(l.db),
+    );
 
     if (levels.length < 3) return;
 
-    // Estimate the background noise level
     const sorted = levels.map((l) => l.db).sort((a, b) => a - b);
     const baseline = sorted[Math.floor(sorted.length / 2)];
 
-    // Find loudness peaks
-    const peaks: { time: number; db: number }[] = [];
+    // Group consecutive loud readings into individual chirps
+    type Chirp = { start: number; end: number; peakDb: number };
+    const chirps: Chirp[] = [];
+    let current: Chirp | null = null;
 
-    for (let i = 1; i < levels.length - 1; i++) {
-      const prev = levels[i - 1];
-      const curr = levels[i];
-      const next = levels[i + 1];
+    for (const { time, db } of levels) {
+      if (db < baseline + 3) continue;
 
-      if (
-        curr.db > baseline + 3 &&
-        curr.db > prev.db &&
-        curr.db >= next.db &&
-        (peaks.length === 0 || curr.time - peaks[peaks.length - 1].time >= 90)
-      ) {
-        peaks.push(curr);
+      // Allow small gaps within one chirp
+      if (current && time - current.end <= 80) {
+        current.end = time;
+        current.peakDb = Math.max(current.peakDb, db);
+      } else {
+        if (current) chirps.push(current);
+        current = { start: time, end: time, peakDb: db };
       }
     }
 
-    // Play the detected peaks as vibrations
-    let lastTime = peaks[0]?.time ?? 0;
+    if (current) chirps.push(current);
+    if (chirps.length === 0) return;
 
-    for (const peak of peaks.slice(0, 30)) {
-      if (stopRequested.current) break;
+    const playbackId = ++playbackIdRef.current;
+    activePlaybackRef.current = true;
+    setIsPlayingRhythm(true);
 
-      const delay = peak.time - lastTime;
+    const startedAt = Date.now();
+    const firstTime = chirps[0].start;
 
-      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    try {
+      for (const chirp of chirps.slice(0, 30)) {
+        if (playbackId !== playbackIdRef.current) break;
 
-      if (stopRequested.current) break;
+        const targetMs = chirp.start - firstTime;
+        const waitMs = Math.max(0, targetMs - (Date.now() - startedAt));
 
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        if (waitMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+        }
 
-      if (peak.db > baseline + 12) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 75));
+        if (playbackId !== playbackIdRef.current) break;
 
-        if (stopRequested.current) break;
+        const duration = chirp.end - chirp.start + 25;
+        const difference = chirp.peakDb - baseline;
 
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        if (duration >= 200) {
+          // Sustained sound -> buzz
+          Vibration.vibrate(
+            Platform.OS === "android" ? Math.min(duration, 600) : undefined,
+          );
+        } else {
+          // Short chirp -> tap based on loudness
+          const intensity =
+            difference >= 12
+              ? Haptics.ImpactFeedbackStyle.Heavy
+              : difference >= 6
+                ? Haptics.ImpactFeedbackStyle.Medium
+                : Haptics.ImpactFeedbackStyle.Light;
+
+          await Haptics.impactAsync(intensity);
+        }
       }
-
-      lastTime = peak.time;
+    } finally {
+      if (playbackId === playbackIdRef.current) {
+        activePlaybackRef.current = false;
+        setIsPlayingRhythm(false);
+      }
     }
   }
 
@@ -600,13 +631,14 @@ export default function HomeScreen() {
       </View>
       <Button
         title="Feel the Birdsong"
-        onPress={playBirdRhythm}
-        disabled={status !== "done"}
+        onPress={() => void playBirdRhythm()}
+        disabled={status !== "done" || isPlayingRhythm}
       />
+
       <Button
         title="Stop Birdsong"
         onPress={stopBirdRhythm}
-        disabled={status !== "done"}
+        disabled={!isPlayingRhythm}
       />
     </ScrollView>
   );
