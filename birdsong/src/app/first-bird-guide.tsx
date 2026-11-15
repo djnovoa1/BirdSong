@@ -32,7 +32,16 @@ export default function FirstBirdGuideScreen() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  const startWatching = async () => {
+  const continueToMain = async () => {
+    try {
+      await completeOnboarding();
+      router.replace('/main');
+    } catch (storageError) {
+      setError(`Could not save your onboarding choice: ${getErrorMessage(storageError)}`);
+    }
+  };
+
+  const skipGuide = async () => {
     try {
       await completeOnboarding();
       router.replace('/main');
@@ -65,9 +74,10 @@ export default function FirstBirdGuideScreen() {
       <View style={styles.footer}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <WireframeButton
-          label="Start watching"
-          onPress={() => void startWatching()}
+          label="Start Searching"
+          onPress={() => void continueToMain()}
         />
+        <WireframeButton label="Skip" onPress={() => void skipGuide()} compact />
       </View>
     </ScreenFrame>
   );

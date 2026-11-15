@@ -28,6 +28,19 @@ assets/              Images, fonts, sounds
 
 Import from `src/` with the `@/` alias, e.g. `import { colors } from '@/constants/theme'`.
 
+## App flow
+
+On first launch, the app shows the welcome screen. Choosing **Yes! Show Me How**
+opens the first-bird guide; **Skip** on the welcome screen opens the main page.
+**Start Searching** on the guide opens the main page. The onboarding choice is
+saved on the device, and the `?` button on the main page reopens the guide.
+
+The main page retains BirdNET recording and identification, compass direction,
+and bird-call vibration controls. It displays the closest matching bird and
+other detected candidates with photos, species details, and confidence scores.
+**Feel the Birdsong** reproduces the detected call rhythm through haptic
+pulses.
+
 ## Scripts
 
 | Command             | Description                 |

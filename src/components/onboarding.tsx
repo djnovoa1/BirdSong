@@ -33,7 +33,7 @@ export function FirstTimeScreen({
           onPress={onShowMeHow}
           style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
         >
-          <Text style={styles.primaryButtonText}>Yes! Show Me How</Text>
+          <Text style={styles.primaryButtonText}>Yes! Show Me How!</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -82,7 +82,7 @@ export function FirstBirdGuideScreen({
             pressed && styles.pressed,
           ]}
         >
-          <Text style={styles.primaryButtonText}>Start Searching!</Text>
+          <Text style={styles.primaryButtonText}>Start Searching</Text>
         </Pressable>
       </View>
     </SafeAreaView>
