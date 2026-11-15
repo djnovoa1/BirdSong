@@ -5,7 +5,6 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from "expo-audio";
-import { Image } from "expo-image";
 import * as Location from "expo-location";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -24,10 +23,7 @@ import {
 import * as Haptics from "expo-haptics";
 
 import { colors, spacing } from "@/constants/theme";
-import {
-  FirstBirdGuideScreen,
-  FirstTimeScreen,
-} from "@/components/onboarding";
+import { FirstBirdGuideScreen, FirstTimeScreen } from "@/components/onboarding";
 import {
   checkBackendHealth,
   detectBirds,
@@ -203,15 +199,16 @@ function MainScreen({ onOpenGuide }: { onOpenGuide: () => void }) {
       return next;
     });
   };
-  const pageStatus = isStarting || isRecording || isAnalyzing
-    ? "Searching..."
-    : status === "done"
-      ? species.length > 0
-        ? "Bird Found!"
-        : "None Found"
-      : status === "error"
-        ? "Listening stopped"
-        : "Ready to listen";
+  const pageStatus =
+    isStarting || isRecording || isAnalyzing
+      ? "Searching..."
+      : status === "done"
+        ? species.length > 0
+          ? "Bird Found!"
+          : "None Found"
+        : status === "error"
+          ? "Listening stopped"
+          : "Ready to listen";
 
   const levelsRef = useRef<{ time: number; db: number }[]>([]);
   const playbackIdRef = useRef(0);
@@ -516,346 +513,364 @@ function MainScreen({ onOpenGuide }: { onOpenGuide: () => void }) {
     <View style={styles.mainScreen}>
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.titleRow}>
-            <Text accessibilityLiveRegion="polite" style={styles.pageStatus}>
-              {pageStatus}
-            </Text>
+          <View style={styles.header}>
+            <View style={styles.titleRow}>
+              <Text accessibilityLiveRegion="polite" style={styles.pageStatus}>
+                {pageStatus}
+              </Text>
+            </View>
+            {backendStatus !== "ready" && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Check BirdNET server connection"
+                onPress={refreshBackend}
+                style={[
+                  styles.serverPill,
+                  backendStatus === "offline"
+                    ? styles.serverOffline
+                    : styles.serverChecking,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.serverDot,
+                    backendStatus === "offline"
+                      ? styles.serverDotOffline
+                      : styles.serverDotChecking,
+                  ]}
+                />
+                <Text style={styles.serverText}>
+                  {backendStatus === "offline"
+                    ? "Server offline · tap to retry"
+                    : "Checking server…"}
+                </Text>
+              </Pressable>
+            )}
+            {backendStatus === "offline" && (
+              <Text style={styles.serverHelp}>
+                Start the BirdSong backend on your computer. This app is
+                checking {getApiUrl()}.
+              </Text>
+            )}
           </View>
-          {backendStatus !== "ready" && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Check BirdNET server connection"
-              onPress={refreshBackend}
-              style={[
-                styles.serverPill,
-                backendStatus === "offline"
-                  ? styles.serverOffline
-                  : styles.serverChecking,
-              ]}
+
+          <View style={styles.compassCard}>
+            <View style={styles.cardHeading}>
+              <View>
+                <Text style={styles.sectionLabel}>SOUND DIRECTION</Text>
+                <Text style={styles.bearing}>{compassLabel}</Text>
+              </View>
+              {heading !== null && (
+                <Text style={styles.phoneHeading}>
+                  PHONE {Math.round(heading)}°
+                </Text>
+              )}
+            </View>
+            <View
+              style={styles.compass}
+              accessibilityLabel={`Estimated sound direction: ${compassLabel}`}
             >
               <View
                 style={[
-                  styles.serverDot,
-                  backendStatus === "offline"
-                    ? styles.serverDotOffline
-                    : styles.serverDotChecking,
+                  styles.dial,
+                  { transform: [{ rotate: `${-(heading ?? 0)}deg` }] },
                 ]}
-              />
-              <Text style={styles.serverText}>
-                {backendStatus === "offline"
-                  ? "Server offline · tap to retry"
-                  : "Checking server…"}
-              </Text>
-            </Pressable>
-          )}
-          {backendStatus === "offline" && (
-            <Text style={styles.serverHelp}>
-              Start the BirdSong backend on your computer. This app is checking{" "}
-              {getApiUrl()}.
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.compassCard}>
-          <View style={styles.cardHeading}>
-            <View>
-              <Text style={styles.sectionLabel}>SOUND DIRECTION</Text>
-              <Text style={styles.bearing}>{compassLabel}</Text>
+              >
+                <Text
+                  style={[
+                    styles.cardinal,
+                    styles.north,
+                    cardinalCounterRotation,
+                  ]}
+                >
+                  N
+                </Text>
+                <Text
+                  style={[
+                    styles.cardinal,
+                    styles.east,
+                    cardinalCounterRotation,
+                  ]}
+                >
+                  E
+                </Text>
+                <Text
+                  style={[
+                    styles.cardinal,
+                    styles.south,
+                    cardinalCounterRotation,
+                  ]}
+                >
+                  S
+                </Text>
+                <Text
+                  style={[
+                    styles.cardinal,
+                    styles.west,
+                    cardinalCounterRotation,
+                  ]}
+                >
+                  W
+                </Text>
+                <View style={styles.compassInner} />
+                {coveragePoints.map(({ index, left, top, sampled }) => (
+                  <View
+                    key={`coverage-${index}`}
+                    style={[
+                      styles.coverageDot,
+                      {
+                        left,
+                        top,
+                        backgroundColor: sampled ? "#54D6A0" : "#294A40",
+                        borderColor: sampled ? "#A7F3D0" : "#78988A",
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+              {loudestBearing !== null && heading !== null ? (
+                <Text
+                  style={[
+                    styles.arrow,
+                    { transform: [{ rotate: `${arrowRotation}deg` }] },
+                  ]}
+                >
+                  ↑
+                </Text>
+              ) : (
+                <View style={styles.compassDot} />
+              )}
             </View>
-            {heading !== null && (
-              <Text style={styles.phoneHeading}>
-                PHONE {Math.round(heading)}°
-              </Text>
-            )}
+            <Text style={styles.compassHint}>
+              {Platform.OS === "web"
+                ? "Compass direction is available in the mobile app."
+                : heading === null
+                  ? "Allow compass access, then slowly turn in place as you listen."
+                  : compassAccuracy === 0
+                    ? "Compass needs calibration. Move your phone in a figure eight."
+                    : savedBearing !== null
+                      ? "Direction saved. Turn the phone and follow the arrow back to where the sound came from."
+                      : "Turn the phone toward the sound; the arrow updates from the loudest direction heard."}
+            </Text>
+            <Text style={styles.coverageDetail}>
+              {Platform.OS === "web"
+                ? "Direction coverage appears when scanning on a phone."
+                : missingDirections.length === 0
+                  ? "Full 360° range sampled"
+                  : `${visitedBins} / ${BIN_COUNT} directions sampled · Still need: ${missingDirections.slice(0, 6).join(", ")}${missingDirections.length > 6 ? ` +${missingDirections.length - 6} more` : ""}`}
+            </Text>
           </View>
-          <View
-            style={styles.compass}
-            accessibilityLabel={`Estimated sound direction: ${compassLabel}`}
-          >
-            <View
-              style={[
-                styles.dial,
-                { transform: [{ rotate: `${-(heading ?? 0)}deg` }] },
+
+          <View style={styles.listenCard}>
+            <View style={styles.listenTop}>
+              <View>
+                <Text style={styles.sectionLabel}>BIRDNET LISTENING</Text>
+                <Text style={styles.timer}>
+                  {formatDuration(
+                    isRecording ? recorderState.durationMillis : 0,
+                  )}
+                </Text>
+              </View>
+              {isRecording && (
+                <View style={styles.livePill}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>LISTENING</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.listenHint}>
+              {isStarting
+                ? "Preparing the microphone and compass..."
+                : isRecording
+                  ? "Turn slowly through a full circle, then stop to identify."
+                  : isAnalyzing
+                    ? `BirdNET is analyzing your recording · ${analysisElapsed}s`
+                    : "Record at least 3 seconds. A longer, slow scan helps estimate direction."}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                isRecording
+                  ? "Stop and identify birds"
+                  : isStarting
+                    ? "Preparing to listen for birds"
+                    : "Start listening"
+              }
+              disabled={isStarting || isAnalyzing}
+              onPress={isRecording ? stopAndIdentify : startListening}
+              style={({ pressed }) => [
+                styles.actionButton,
+                isRecording && styles.stopButton,
+                (pressed || isAnalyzing) && styles.pressed,
               ]}
             >
-              <Text
-                style={[styles.cardinal, styles.north, cardinalCounterRotation]}
-              >
-                N
-              </Text>
-              <Text
-                style={[styles.cardinal, styles.east, cardinalCounterRotation]}
-              >
-                E
-              </Text>
-              <Text
-                style={[styles.cardinal, styles.south, cardinalCounterRotation]}
-              >
-                S
-              </Text>
-              <Text
-                style={[styles.cardinal, styles.west, cardinalCounterRotation]}
-              >
-                W
-              </Text>
-              <View style={styles.compassInner} />
-              {coveragePoints.map(({ index, left, top, sampled }) => (
-                <View
-                  key={`coverage-${index}`}
-                  style={[
-                    styles.coverageDot,
-                    {
-                      left,
-                      top,
-                      backgroundColor: sampled ? "#54D6A0" : "#294A40",
-                      borderColor: sampled ? "#A7F3D0" : "#78988A",
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-            {loudestBearing !== null && heading !== null ? (
-              <Text
-                style={[
-                  styles.arrow,
-                  { transform: [{ rotate: `${arrowRotation}deg` }] },
-                ]}
-              >
-                ↑
-              </Text>
-            ) : (
-              <View style={styles.compassDot} />
-            )}
-          </View>
-          <Text style={styles.compassHint}>
-            {Platform.OS === "web"
-              ? "Compass direction is available in the mobile app."
-              : heading === null
-                ? "Allow compass access, then slowly turn in place as you listen."
-                : compassAccuracy === 0
-                  ? "Compass needs calibration. Move your phone in a figure eight."
-                  : savedBearing !== null
-                    ? "Direction saved. Turn the phone and follow the arrow back to where the sound came from."
-                    : "Turn the phone toward the sound; the arrow updates from the loudest direction heard."}
-          </Text>
-          <Text style={styles.coverageDetail}>
-            {Platform.OS === "web"
-              ? "Direction coverage appears when scanning on a phone."
-              : missingDirections.length === 0
-                ? "Full 360° range sampled"
-                : `${visitedBins} / ${BIN_COUNT} directions sampled · Still need: ${missingDirections.slice(0, 6).join(", ")}${missingDirections.length > 6 ? ` +${missingDirections.length - 6} more` : ""}`}
-          </Text>
-        </View>
-
-        <View style={styles.listenCard}>
-          <View style={styles.listenTop}>
-            <View>
-              <Text style={styles.sectionLabel}>BIRDNET LISTENING</Text>
-              <Text style={styles.timer}>
-                {formatDuration(isRecording ? recorderState.durationMillis : 0)}
-              </Text>
-            </View>
-            {isRecording && (
-              <View style={styles.livePill}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>LISTENING</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.listenHint}>
-            {isStarting
-              ? "Preparing the microphone and compass..."
-              : isRecording
-              ? "Turn slowly through a full circle, then stop to identify."
-              : isAnalyzing
-                ? `BirdNET is analyzing your recording · ${analysisElapsed}s`
-                : "Record at least 3 seconds. A longer, slow scan helps estimate direction."}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              isRecording
-                ? "Stop and identify birds"
-                : isStarting
-                  ? "Preparing to listen for birds"
-                  : "Start listening"
-            }
-            disabled={isStarting || isAnalyzing}
-            onPress={isRecording ? stopAndIdentify : startListening}
-            style={({ pressed }) => [
-              styles.actionButton,
-              isRecording && styles.stopButton,
-              (pressed || isAnalyzing) && styles.pressed,
-            ]}
-          >
-            {isStarting || isAnalyzing ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text
-                style={[
-                  styles.actionText,
-                  isRecording && styles.stopActionText,
-                ]}
-              >
-                {isRecording ? "Stop & identify" : "Start listening"}
-              </Text>
-            )}
-          </Pressable>
-          {isAnalyzing && (
-            <Text style={styles.analyzingText}>
-              This can take a little while on the first analysis.
-            </Text>
-          )}
-        </View>
-
-        {error && (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorText}>{error}</Text>
-            {permissionDenied && (
-              <Pressable onPress={() => Linking.openSettings()}>
-                <Text style={styles.settingsLink}>Open Settings</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
-
-        <View style={styles.results}>
-          <Text style={styles.resultSectionLabel}>Birds Heard:</Text>
-          {featuredSpecies && (
-            <View style={styles.resultImageBox}>
-              {failedSpeciesImages.has(featuredSpecies.scientific_name) ? (
-                <View style={styles.featuredImageFallback}>
-                  <Text style={styles.featuredImageFallbackText}>
-                    Photo unavailable
-                  </Text>
-                </View>
+              {isStarting || isAnalyzing ? (
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Image
-                  accessibilityLabel={`Photo of ${featuredSpecies.common_name}`}
-                  resizeMode="cover"
-                  onError={() =>
-                    markSpeciesImageFailed(featuredSpecies.scientific_name)
-                  }
-                  source={{
-                    uri: getSpeciesImageUrl(featuredSpecies.scientific_name),
-                  }}
-                  style={styles.featuredImage}
-                />
+                <Text
+                  style={[
+                    styles.actionText,
+                    isRecording && styles.stopActionText,
+                  ]}
+                >
+                  {isRecording ? "Stop & identify" : "Start listening"}
+                </Text>
+              )}
+            </Pressable>
+            {isAnalyzing && (
+              <Text style={styles.analyzingText}>
+                This can take a little while on the first analysis.
+              </Text>
+            )}
+          </View>
+
+          {error && (
+            <View style={styles.errorCard}>
+              <Text style={styles.errorText}>{error}</Text>
+              {permissionDenied && (
+                <Pressable onPress={() => Linking.openSettings()}>
+                  <Text style={styles.settingsLink}>Open Settings</Text>
+                </Pressable>
               )}
             </View>
           )}
-          {featuredSpecies && (
-            <View style={styles.featuredInfo}>
-              <View style={styles.birdText}>
-                <Text style={styles.commonName}>
-                  {featuredSpecies.common_name}
-                </Text>
-                <Text style={styles.scientificName}>
-                  {featuredSpecies.scientific_name}
-                </Text>
-              </View>
-              <Text style={styles.confidence}>
-                {Math.round(featuredSpecies.confidence * 100)}%
-              </Text>
-            </View>
-          )}
-          {status === "done" && !featuredSpecies && (
-            <Text style={styles.resultMessage}>
-              No birds identified this time. Try a longer recording in a quieter
-              spot.
-            </Text>
-          )}
-          <Text style={styles.directionNote}>
-            The direction above is a rough estimate from microphone level as you
-            turned.
-          </Text>
-          {featuredSpecies && (
-            <Text style={styles.imageCredit}>
-              Photo via BirdNET Taxonomy
-            </Text>
-          )}
-          {rankedSpecies.length > 1 && (
-            <Text style={styles.alsoHeardLabel}>ALSO HEARD</Text>
-          )}
-          {rankedSpecies.slice(1, 5).map((bird) => (
-            <View key={bird.scientific_name} style={styles.birdRow}>
-              <View style={styles.alternativeImageBox}>
-                {failedSpeciesImages.has(bird.scientific_name) ? (
-                  <Text style={styles.alternativeImageFallback}>
-                    Photo unavailable
-                  </Text>
+
+          <View style={styles.results}>
+            <Text style={styles.resultSectionLabel}>Birds Heard:</Text>
+            {featuredSpecies && (
+              <View style={styles.resultImageBox}>
+                {failedSpeciesImages.has(featuredSpecies.scientific_name) ? (
+                  <View style={styles.featuredImageFallback}>
+                    <Text style={styles.featuredImageFallbackText}>
+                      Photo unavailable
+                    </Text>
+                  </View>
                 ) : (
                   <Image
-                    accessibilityLabel={`Photo of ${bird.common_name}`}
+                    accessibilityLabel={`Photo of ${featuredSpecies.common_name}`}
                     resizeMode="cover"
-                    onError={() => markSpeciesImageFailed(bird.scientific_name)}
+                    onError={() =>
+                      markSpeciesImageFailed(featuredSpecies.scientific_name)
+                    }
                     source={{
-                      uri: getSpeciesImageUrl(bird.scientific_name),
+                      uri: getSpeciesImageUrl(featuredSpecies.scientific_name),
                     }}
-                    style={styles.alternativeImage}
+                    style={styles.featuredImage}
                   />
                 )}
               </View>
-              <View style={styles.birdText}>
-                <Text style={styles.alternativeCommonName}>
-                  {bird.common_name}
-                </Text>
-                <Text style={styles.alternativeScientificName}>
-                  {bird.scientific_name}
+            )}
+            {featuredSpecies && (
+              <View style={styles.featuredInfo}>
+                <View style={styles.birdText}>
+                  <Text style={styles.commonName}>
+                    {featuredSpecies.common_name}
+                  </Text>
+                  <Text style={styles.scientificName}>
+                    {featuredSpecies.scientific_name}
+                  </Text>
+                </View>
+                <Text style={styles.confidence}>
+                  {Math.round(featuredSpecies.confidence * 100)}%
                 </Text>
               </View>
-              <Text style={styles.alternativeConfidence}>
-                {Math.round(bird.confidence * 100)}%
+            )}
+            {status === "done" && !featuredSpecies && (
+              <Text style={styles.resultMessage}>
+                No birds identified this time. Try a longer recording in a
+                quieter spot.
               </Text>
-            </View>
-          ))}
-        </View>
+            )}
+            <Text style={styles.directionNote}>
+              The direction above is a rough estimate from microphone level as
+              you turned.
+            </Text>
+            {featuredSpecies && (
+              <Text style={styles.imageCredit}>Photo via BirdNET Taxonomy</Text>
+            )}
+            {rankedSpecies.length > 1 && (
+              <Text style={styles.alsoHeardLabel}>ALSO HEARD</Text>
+            )}
+            {rankedSpecies.slice(1, 5).map((bird) => (
+              <View key={bird.scientific_name} style={styles.birdRow}>
+                <View style={styles.alternativeImageBox}>
+                  {failedSpeciesImages.has(bird.scientific_name) ? (
+                    <Text style={styles.alternativeImageFallback}>
+                      Photo unavailable
+                    </Text>
+                  ) : (
+                    <Image
+                      accessibilityLabel={`Photo of ${bird.common_name}`}
+                      resizeMode="cover"
+                      onError={() =>
+                        markSpeciesImageFailed(bird.scientific_name)
+                      }
+                      source={{
+                        uri: getSpeciesImageUrl(bird.scientific_name),
+                      }}
+                      style={styles.alternativeImage}
+                    />
+                  )}
+                </View>
+                <View style={styles.birdText}>
+                  <Text style={styles.alternativeCommonName}>
+                    {bird.common_name}
+                  </Text>
+                  <Text style={styles.alternativeScientificName}>
+                    {bird.scientific_name}
+                  </Text>
+                </View>
+                <Text style={styles.alternativeConfidence}>
+                  {Math.round(bird.confidence * 100)}%
+                </Text>
+              </View>
+            ))}
+          </View>
 
-        <Text style={styles.privacyNote}>
-          Compass is used to estimate direction while you scan. BirdSong sends
-          the recording to its BirdNET server for identification.
-        </Text>
-        <View style={styles.hapticControls}>
-          <Pressable
-            accessibilityRole="button"
-            disabled={!canPlayBirdRhythm}
-            onPress={() => void playBirdRhythm()}
-            style={({ pressed }) => [
-              styles.hapticButton,
-              !canPlayBirdRhythm && styles.hapticButtonDisabled,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text
-              style={[
-                styles.hapticButtonText,
-                !canPlayBirdRhythm && styles.hapticButtonTextDisabled,
+          <Text style={styles.privacyNote}>
+            Compass is used to estimate direction while you scan. BirdSong sends
+            the recording to its BirdNET server for identification.
+          </Text>
+          <View style={styles.hapticControls}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={!canPlayBirdRhythm}
+              onPress={() => void playBirdRhythm()}
+              style={({ pressed }) => [
+                styles.hapticButton,
+                !canPlayBirdRhythm && styles.hapticButtonDisabled,
+                pressed && styles.pressed,
               ]}
             >
-              FEEL THE BIRD SONG
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            disabled={!isPlayingRhythm}
-            onPress={stopBirdRhythm}
-            style={({ pressed }) => [
-              styles.hapticButton,
-              !isPlayingRhythm && styles.hapticButtonDisabled,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text
-              style={[
-                styles.hapticButtonText,
-                !isPlayingRhythm && styles.hapticButtonTextDisabled,
+              <Text
+                style={[
+                  styles.hapticButtonText,
+                  !canPlayBirdRhythm && styles.hapticButtonTextDisabled,
+                ]}
+              >
+                FEEL THE BIRD SONG
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={!isPlayingRhythm}
+              onPress={stopBirdRhythm}
+              style={({ pressed }) => [
+                styles.hapticButton,
+                !isPlayingRhythm && styles.hapticButtonDisabled,
+                pressed && styles.pressed,
               ]}
             >
-              STOP THE BIRD SONG
-            </Text>
-          </Pressable>
-        </View>
+              <Text
+                style={[
+                  styles.hapticButtonText,
+                  !isPlayingRhythm && styles.hapticButtonTextDisabled,
+                ]}
+              >
+                STOP THE BIRD SONG
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
       <Pressable
