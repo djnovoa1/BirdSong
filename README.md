@@ -17,12 +17,12 @@ Then press `i` for the iOS simulator, `a` for the Android emulator, or scan the 
 ```
 app/                 Screens and navigation (file-based routing via expo-router)
   _layout.tsx        Root navigation stack
-  index.tsx          Home screen
+  index.tsx          Onboarding and BirdSong listening screen
 src/
-  components/        Reusable UI components
+  components/        Reusable UI and onboarding screens
   constants/         Theme colors, spacing, and other constants
   hooks/             Custom React hooks
-  services/          API clients, storage, and other side effects
+  services/          BirdNET API client, onboarding storage, and other side effects
 assets/              Images, fonts, sounds
 ```
 

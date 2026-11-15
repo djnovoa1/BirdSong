@@ -10,7 +10,6 @@ import * as Location from "expo-location";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Button,
   Linking,
   Platform,
   Pressable,
@@ -25,16 +24,27 @@ import * as Haptics from "expo-haptics";
 
 import { colors, spacing } from "@/constants/theme";
 import {
+  FirstBirdGuideScreen,
+  FirstTimeScreen,
+} from "@/components/onboarding";
+import {
   checkBackendHealth,
   detectBirds,
   getApiUrl,
   getSpeciesImageUrl,
   type Species,
 } from "@/services/birdnet";
+import {
+  completeOnboarding,
+  hasCompletedOnboarding,
+} from "@/services/onboarding";
 
 const MIN_RECORDING_MS = 3000;
 const BIN_SIZE = 15;
 const BIN_COUNT = 360 / BIN_SIZE;
+const COMPASS_SIZE = 260;
+const COMPASS_CENTER = COMPASS_SIZE / 2;
+const COMPASS_RADIUS = COMPASS_SIZE * 0.39;
 const DIRECTIONS = [
   "N",
   "NNE",
@@ -56,6 +66,7 @@ const DIRECTIONS = [
 
 type SoundBin = { energy: number; samples: number };
 type Status = "idle" | "recording" | "analyzing" | "done" | "error";
+type AppScreen = "loading" | "storage-error" | "first-time" | "guide" | "main";
 
 const createBins = (): SoundBin[] =>
   Array.from({ length: BIN_COUNT }, () => ({ energy: 0, samples: 0 }));
@@ -75,6 +86,8 @@ export default function HomeScreen() {
     isMeteringEnabled: true,
   });
   const recorderState = useAudioRecorderState(recorder, 25);
+  const [appScreen, setAppScreen] = useState<AppScreen>("loading");
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [species, setSpecies] = useState<Species[]>([]);
   const [failedSpeciesImage, setFailedSpeciesImage] = useState<string | null>(
@@ -106,6 +119,25 @@ export default function HomeScreen() {
   const playbackIdRef = useRef(0);
   const activePlaybackRef = useRef(false);
   const [isPlayingRhythm, setIsPlayingRhythm] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    hasCompletedOnboarding()
+      .then((completed) => {
+        if (isMounted) setAppScreen(completed ? "main" : "first-time");
+      })
+      .catch((e: unknown) => {
+        if (!isMounted) return;
+        setOnboardingError(
+          e instanceof Error ? e.message : "The saved setup could not be read.",
+        );
+        setAppScreen("storage-error");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (status !== "recording") return;
@@ -147,6 +179,34 @@ export default function HomeScreen() {
     setBackendStatus("checking");
     const ready = await checkBackendHealth();
     setBackendStatus(ready ? "ready" : "offline");
+  }
+
+  async function retryOnboardingLoad() {
+    setAppScreen("loading");
+    setOnboardingError(null);
+    try {
+      const completed = await hasCompletedOnboarding();
+      setAppScreen(completed ? "main" : "first-time");
+    } catch (e) {
+      setOnboardingError(
+        e instanceof Error ? e.message : "The saved setup could not be read.",
+      );
+      setAppScreen("storage-error");
+    }
+  }
+
+  async function finishFirstTime(nextScreen: "guide" | "main") {
+    setOnboardingError(null);
+    try {
+      await completeOnboarding();
+    } catch (e) {
+      setOnboardingError(
+        e instanceof Error
+          ? `Your choice could not be saved: ${e.message}`
+          : "Your choice could not be saved. You may see this screen again next time.",
+      );
+    }
+    setAppScreen(nextScreen);
   }
 
   useEffect(() => {
@@ -200,11 +260,10 @@ export default function HomeScreen() {
   );
   const coveragePoints = bins.map((bin, index) => {
     const angle = ((index * BIN_SIZE - (heading ?? 0) - 90) * Math.PI) / 180;
-    const radius = 86;
     return {
       index,
-      left: 110 + Math.cos(angle) * radius,
-      top: 110 + Math.sin(angle) * radius,
+      left: COMPASS_CENTER + Math.cos(angle) * COMPASS_RADIUS,
+      top: COMPASS_CENTER + Math.sin(angle) * COMPASS_RADIUS,
       sampled: bin.samples > 0,
     };
   });
@@ -398,55 +457,117 @@ export default function HomeScreen() {
       ? "Rotate slowly while listening"
       : `${directionName(displayedBearing)} · ${Math.round(displayedBearing)}°`;
 
+  if (appScreen === "loading") {
+    return (
+      <View style={styles.loadingPage}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (appScreen === "storage-error") {
+    return (
+      <View style={styles.storageErrorPage}>
+        <Text style={styles.storageErrorTitle}>
+          Could not load your setup
+        </Text>
+        <Text style={styles.storageErrorText}>
+          {onboardingError ?? "Please check your device storage and try again."}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void retryOnboardingLoad()}
+          style={styles.primaryAction}
+        >
+          <Text style={styles.primaryActionText}>Try Again</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (appScreen === "first-time") {
+    return (
+      <FirstTimeScreen
+        error={onboardingError}
+        onShowMeHow={() => void finishFirstTime("guide")}
+        onSkip={() => void finishFirstTime("main")}
+      />
+    );
+  }
+
+  if (appScreen === "guide") {
+    return (
+      <FirstBirdGuideScreen
+        error={onboardingError}
+        onStartSearching={() => setAppScreen("main")}
+      />
+    );
+  }
+
+  const pageTitle =
+    isRecording || isAnalyzing
+      ? "Searching…"
+      : status === "done"
+        ? rankedSpecies.length > 0
+          ? "Bird Found!"
+          : "None Found."
+        : "…";
+
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <View style={styles.content}>
         <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.eyebrow}>FIELD LISTENING</Text>
-              <Text style={styles.title}>BirdSong</Text>
-            </View>
+          <View style={styles.titleRow}>
+            <Text accessibilityLiveRegion="polite" style={styles.title}>
+              {pageTitle}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Return to the first bird guide"
+              onPress={() => setAppScreen("guide")}
+              style={({ pressed }) => [
+                styles.helpButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.helpButtonText}>?</Text>
+            </Pressable>
+          </View>
+          {backendStatus !== "ready" && (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Check BirdNET server connection"
               onPress={refreshBackend}
               style={[
                 styles.serverPill,
-                backendStatus === "ready"
-                  ? styles.serverReady
-                  : backendStatus === "offline"
-                    ? styles.serverOffline
-                    : styles.serverChecking,
+                backendStatus === "offline"
+                  ? styles.serverOffline
+                  : styles.serverChecking,
               ]}
             >
               <View
                 style={[
                   styles.serverDot,
-                  backendStatus === "ready"
-                    ? styles.serverDotReady
-                    : backendStatus === "offline"
-                      ? styles.serverDotOffline
-                      : styles.serverDotChecking,
+                  backendStatus === "offline"
+                    ? styles.serverDotOffline
+                    : styles.serverDotChecking,
                 ]}
               />
               <Text style={styles.serverText}>
-                {backendStatus === "ready"
-                  ? "BirdNET ready"
-                  : backendStatus === "offline"
-                    ? "Server offline · tap to retry"
-                    : "Checking server…"}
+                {backendStatus === "offline"
+                  ? "Server offline · tap to retry"
+                  : "Checking server…"}
               </Text>
             </Pressable>
-          </View>
-          <Text style={styles.subtitle}>
-            Listen for a bird. Find the direction.
-          </Text>
+          )}
           {backendStatus === "offline" && (
             <Text style={styles.serverHelp}>
               Start the BirdSong backend on your computer. This app is checking{" "}
               {getApiUrl()}.
             </Text>
+          )}
+          {onboardingError && (
+            <Text style={styles.serverHelp}>{onboardingError}</Text>
           )}
         </View>
 
@@ -537,7 +658,7 @@ export default function HomeScreen() {
               ? "Direction coverage appears when scanning on a phone."
               : missingDirections.length === 0
                 ? "Full 360° range sampled"
-                : `Still need: ${missingDirections.slice(0, 6).join(", ")}${missingDirections.length > 6 ? ` +${missingDirections.length - 6} more` : ""}`}
+                : `${visitedBins} / ${BIN_COUNT} directions sampled · Still need: ${missingDirections.slice(0, 6).join(", ")}${missingDirections.length > 6 ? ` +${missingDirections.length - 6} more` : ""}`}
           </Text>
         </View>
 
@@ -602,134 +723,211 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {status === "done" && (
-          <View style={styles.results}>
-            <Text style={styles.sectionLabel}>BIRDS HEARD</Text>
-            {rankedSpecies.length === 0 ? (
-              <Text style={styles.empty}>
-                No birds identified this time. Try a longer recording in a
-                quieter spot.
-              </Text>
-            ) : (
+        <View style={styles.results}>
+          <Text style={styles.resultSectionLabel}>BIRDS HEARD</Text>
+          {featuredSpecies && (
+            <View style={styles.resultImageBox}>
+              {failedSpeciesImage === featuredSpecies.scientific_name ? (
+                <View style={styles.featuredImageFallback}>
+                  <Text style={styles.featuredImageFallbackText}>
+                    Photo unavailable
+                  </Text>
+                </View>
+              ) : (
+                <Image
+                  accessibilityLabel={`Photo of ${featuredSpecies.common_name}`}
+                  contentFit="cover"
+                  onError={() =>
+                    setFailedSpeciesImage(featuredSpecies.scientific_name)
+                  }
+                  source={{
+                    uri: getSpeciesImageUrl(featuredSpecies.scientific_name),
+                  }}
+                  style={styles.featuredImage}
+                  transition={180}
+                />
+              )}
+            </View>
+          )}
+          <View style={styles.featuredInfo}>
+            {featuredSpecies ? (
               <>
-                {featuredSpecies && (
-                  <View style={styles.featuredBird}>
-                    {failedSpeciesImage === featuredSpecies.scientific_name ? (
-                      <View style={styles.featuredImageFallback}>
-                        <Text style={styles.featuredImageFallbackText}>
-                          Photo unavailable
-                        </Text>
-                      </View>
-                    ) : (
-                      <Image
-                        accessibilityLabel={`Photo of ${featuredSpecies.common_name}`}
-                        contentFit="cover"
-                        onError={() =>
-                          setFailedSpeciesImage(featuredSpecies.scientific_name)
-                        }
-                        source={{
-                          uri: getSpeciesImageUrl(
-                            featuredSpecies.scientific_name,
-                          ),
-                        }}
-                        style={styles.featuredImage}
-                        transition={180}
-                      />
-                    )}
-                    <View style={styles.featuredInfo}>
-                      <View style={styles.birdText}>
-                        <Text style={styles.featuredLabel}>TOP MATCH</Text>
-                        <Text style={styles.commonName}>
-                          {featuredSpecies.common_name}
-                        </Text>
-                        <Text style={styles.scientificName}>
-                          {featuredSpecies.scientific_name}
-                        </Text>
-                      </View>
-                      <Text style={styles.confidence}>
-                        {Math.round(featuredSpecies.confidence * 100)}%
-                      </Text>
-                    </View>
-                    <Text style={styles.imageCredit}>
-                      Photo via BirdNET Taxonomy
-                    </Text>
-                  </View>
-                )}
-                {rankedSpecies.length > 1 && (
-                  <Text style={styles.alsoHeardLabel}>ALSO HEARD</Text>
-                )}
-                {rankedSpecies.slice(1, 5).map((bird) => (
-                  <View key={bird.scientific_name} style={styles.birdRow}>
-                    <View style={styles.birdText}>
-                      <Text style={styles.commonName}>{bird.common_name}</Text>
-                      <Text style={styles.scientificName}>
-                        {bird.scientific_name}
-                      </Text>
-                    </View>
-                    <Text style={styles.confidence}>
-                      {Math.round(bird.confidence * 100)}%
-                    </Text>
-                  </View>
-                ))}
+                <View style={styles.birdText}>
+                  <Text style={styles.commonName}>
+                    {featuredSpecies.common_name}
+                  </Text>
+                  <Text style={styles.scientificName}>
+                    {featuredSpecies.scientific_name}
+                  </Text>
+                </View>
+                <Text style={styles.confidence}>
+                  {Math.round(featuredSpecies.confidence * 100)}%
+                </Text>
               </>
-            )}
-            {loudestBearing !== null && Platform.OS !== "web" && (
-              <Text style={styles.directionNote}>
-                The direction above is a rough estimate from microphone level as
-                you turned.
+            ) : (
+              <Text style={styles.resultMessage}>
+                {status === "done"
+                  ? "No birds identified this time. Try a longer recording in a quieter spot."
+                  : isAnalyzing
+                    ? `BirdNET is identifying your recording · ${analysisElapsed}s`
+                    : isRecording
+                      ? "Listening for birds. Stop when you are ready to identify."
+                      : status === "error"
+                        ? "Fix the issue above, then try listening again."
+                        : "Record at least 3 seconds. A longer, slower scan helps."}
               </Text>
             )}
           </View>
-        )}
+          {featuredSpecies && (
+            <Text style={styles.imageCredit}>Photo via BirdNET Taxonomy</Text>
+          )}
+          {rankedSpecies.length > 1 && (
+            <Text style={styles.alsoHeardLabel}>ALSO HEARD</Text>
+          )}
+          {rankedSpecies.slice(1, 5).map((bird) => (
+            <View key={bird.scientific_name} style={styles.birdRow}>
+              <View style={styles.birdText}>
+                <Text style={styles.commonName}>{bird.common_name}</Text>
+                <Text style={styles.scientificName}>
+                  {bird.scientific_name}
+                </Text>
+              </View>
+              <Text style={styles.confidence}>
+                {Math.round(bird.confidence * 100)}%
+              </Text>
+            </View>
+          ))}
+          {loudestBearing !== null && Platform.OS !== "web" && (
+            <Text style={styles.directionNote}>
+              The direction above is a rough estimate from microphone level as
+              you turned.
+            </Text>
+          )}
+        </View>
 
         <Text style={styles.privacyNote}>
           Compass is used to estimate direction while you scan. BirdSong sends
           the recording to its BirdNET server for identification.
         </Text>
       </View>
-      <Button
-        title="Feel the Birdsong"
-        onPress={() => void playBirdRhythm()}
-        disabled={status !== "done" || isPlayingRhythm}
-      />
-
-      <Button
-        title="Stop Birdsong"
-        onPress={stopBirdRhythm}
-        disabled={!isPlayingRhythm}
-      />
+      <View style={styles.rhythmControls}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={status !== "done" || isPlayingRhythm}
+          onPress={() => void playBirdRhythm()}
+          style={({ pressed }) => [
+            styles.rhythmButton,
+            styles.rhythmStart,
+            (pressed || status !== "done" || isPlayingRhythm) &&
+              styles.disabledButton,
+          ]}
+        >
+          <Text style={styles.rhythmButtonText}>Feel the Birdsong</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          disabled={!isPlayingRhythm}
+          onPress={stopBirdRhythm}
+          style={({ pressed }) => [
+            styles.rhythmButton,
+            styles.rhythmStop,
+            (pressed || !isPlayingRhythm) && styles.disabledButton,
+          ]}
+        >
+          <Text style={styles.rhythmButtonText}>Stop the Birdsong</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingPage: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF1DE",
+  },
+  storageErrorPage: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.lg,
+    backgroundColor: "#EEF1DE",
+  },
+  storageErrorTitle: {
+    color: "#1C543C",
+    fontSize: 24,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  storageErrorText: {
+    color: "#4C6656",
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+  },
+  primaryAction: {
+    minHeight: 48,
+    minWidth: 150,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#246247",
+    borderRadius: 8,
+    paddingHorizontal: spacing.md,
+  },
+  primaryActionText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
   page: {
     flexGrow: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#EEF1DE",
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
   },
   content: {
     width: "100%",
-    maxWidth: 520,
+    maxWidth: 460,
     alignSelf: "center",
-    gap: spacing.md,
+    gap: 12,
   },
-  header: { paddingTop: spacing.sm, paddingBottom: spacing.xs },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 2,
+  header: {
+    gap: 8,
+    paddingBottom: 2,
   },
-  headerTop: {
+  titleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    flexWrap: "wrap",
-    gap: 8,
+  },
+  title: {
+    color: "#1C543C",
+    flex: 1,
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  helpButton: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 19,
+    backgroundColor: "#07835A",
+    marginLeft: spacing.sm,
+  },
+  helpButtonText: {
+    color: "#FFFFFF",
+    fontSize: 25,
+    fontWeight: "700",
+    lineHeight: 29,
   },
   serverPill: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -737,7 +935,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
   },
-  serverReady: { backgroundColor: "#DCFCE7" },
   serverOffline: { backgroundColor: "#FEE2E2" },
   serverChecking: { backgroundColor: "#E5E7EB" },
   serverDot: {
@@ -745,12 +942,11 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  serverDotReady: { backgroundColor: "#16A34A" },
   serverDotOffline: { backgroundColor: "#DC2626" },
   serverDotChecking: { backgroundColor: "#9CA3AF" },
   serverText: {
     color: "#1F2937",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
   },
   serverHelp: {
@@ -758,18 +954,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 6,
   },
-  title: {
-    color: colors.text,
-    fontSize: 34,
-    fontWeight: "800",
-    letterSpacing: -1,
-    marginTop: 5,
-  },
-  subtitle: { color: colors.muted, fontSize: 15, marginTop: 4 },
   compassCard: {
-    backgroundColor: "#173E32",
-    borderRadius: 24,
-    padding: spacing.md,
+    backgroundColor: "#246247",
+    borderRadius: 10,
+    padding: 14,
     alignItems: "center",
   },
   cardHeading: {
@@ -779,21 +967,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sectionLabel: {
-    color: colors.muted,
+    color: "#E6F0E7",
     fontSize: 11,
     fontWeight: "800",
-    letterSpacing: 1.4,
+    letterSpacing: 1,
   },
-  bearing: { color: "#FFFFFF", fontSize: 23, fontWeight: "700", marginTop: 4 },
-  phoneHeading: { color: "#C5D8CE", fontSize: 11, fontWeight: "700" },
+  resultSectionLabel: {
+    color: "#1C543C",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textAlign: "center",
+  },
+  bearing: {
+    color: "#FFFFFF",
+    fontSize: 19,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  phoneHeading: { color: "#C5D8CE", fontSize: 10, fontWeight: "700" },
   compass: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+    width: COMPASS_SIZE,
+    height: COMPASS_SIZE,
+    borderRadius: COMPASS_CENTER,
     borderWidth: 1,
     borderColor: "#658478",
     backgroundColor: "#204C3E",
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -804,75 +1004,69 @@ const styles = StyleSheet.create({
   },
   compassInner: {
     position: "absolute",
-    width: 132,
-    height: 132,
-    borderRadius: 66,
+    width: 156,
+    height: 156,
+    borderRadius: 78,
     borderWidth: 1,
     borderColor: "#527566",
   },
   cardinal: {
     position: "absolute",
     color: "#D8E8DF",
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "800",
     zIndex: 2,
   },
-  north: { top: 9 },
-  east: { right: 12 },
-  south: { bottom: 9 },
-  west: { left: 12 },
+  north: { top: 13 },
+  east: { right: 16 },
+  south: { bottom: 13 },
+  west: { left: 16 },
   coverageDot: {
     position: "absolute",
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     borderWidth: 2,
-    marginLeft: -6,
-    marginTop: -6,
+    marginLeft: -7,
+    marginTop: -7,
     zIndex: 2,
   },
   arrow: {
     position: "absolute",
     color: "#F4C86A",
-    fontSize: 74,
-    lineHeight: 84,
+    fontSize: 84,
+    lineHeight: 94,
     fontWeight: "500",
     textAlign: "center",
     textAlignVertical: "center",
   },
   compassDot: {
     position: "absolute",
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: "#F4C86A",
   },
   compassHint: {
     color: "#D0DED7",
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 17,
     textAlign: "center",
-    marginTop: spacing.md,
-    maxWidth: 330,
-  },
-  coverageCount: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "800",
     marginTop: spacing.sm,
+    maxWidth: 330,
   },
   coverageDetail: {
     color: "#D0DED7",
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 10,
+    lineHeight: 15,
     textAlign: "center",
     marginTop: 4,
     maxWidth: 340,
   },
   listenCard: {
-    backgroundColor: "#F1F3F5",
-    borderRadius: 20,
-    padding: spacing.md,
+    backgroundColor: "#07835A",
+    borderRadius: 10,
+    padding: 14,
   },
   listenTop: {
     flexDirection: "row",
@@ -880,9 +1074,9 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   timer: {
-    color: colors.text,
-    fontSize: 36,
-    fontWeight: "300",
+    color: "#FFFFFF",
+    fontSize: 34,
+    fontWeight: "400",
     fontVariant: ["tabular-nums"],
     marginTop: 4,
   },
@@ -893,46 +1087,46 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "#FCE8E3",
+    backgroundColor: "#D6F1E2",
   },
   liveDot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: colors.recording,
+    backgroundColor: "#246247",
   },
   liveText: {
-    color: colors.recording,
+    color: "#1C543C",
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1,
   },
   listenHint: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 20,
+    color: "#E6F0E7",
+    fontSize: 12,
+    lineHeight: 17,
     marginTop: spacing.xs,
   },
   actionButton: {
-    minHeight: 52,
-    borderRadius: 15,
-    backgroundColor: colors.primary,
+    minHeight: 44,
+    borderRadius: 7,
+    backgroundColor: "#EEF1DE",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
-  stopButton: { backgroundColor: colors.recording },
-  actionText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  stopButton: { backgroundColor: "#E94736" },
+  actionText: { color: "#1C543C", fontSize: 14, fontWeight: "700" },
   pressed: { opacity: 0.72 },
   analyzingText: {
-    color: colors.muted,
+    color: "#E6F0E7",
     textAlign: "center",
     fontSize: 12,
     marginTop: spacing.sm,
   },
   errorCard: {
     backgroundColor: "#FEF2F2",
-    borderRadius: 14,
+    borderRadius: 10,
     padding: spacing.md,
   },
   errorText: { color: colors.error, fontSize: 14, lineHeight: 20 },
@@ -941,42 +1135,53 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: spacing.sm,
   },
-  results: { gap: spacing.sm },
-  featuredBird: {
-    overflow: "hidden",
-    borderRadius: 18,
-    backgroundColor: "#F1F3F5",
+  results: {
+    gap: 9,
+    paddingTop: 2,
+    alignItems: "stretch",
   },
-  featuredImage: { width: "100%", height: 210, backgroundColor: "#DDE9E2" },
-  featuredImageFallback: {
+  resultImageBox: {
+    overflow: "hidden",
     width: "100%",
-    height: 210,
+    alignSelf: "center",
+    aspectRatio: 1,
+    maxHeight: 300,
+    borderRadius: 8,
+    backgroundColor: "#204C3E",
+  },
+  featuredImage: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#204C3E",
+  },
+  featuredImageFallback: {
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#DDE9E2",
+    backgroundColor: "#204C3E",
   },
-  featuredImageFallbackText: { color: colors.muted, fontSize: 13 },
+  featuredImageFallbackText: { color: "#E6F0E7", fontSize: 13 },
   featuredInfo: {
     flexDirection: "row",
     alignItems: "center",
-    padding: spacing.md,
+    backgroundColor: "#07835A",
+    borderRadius: 8,
+    minHeight: 58,
+    padding: 13,
     gap: spacing.sm,
   },
-  featuredLabel: {
-    color: colors.primary,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1.2,
-    marginBottom: 5,
+  resultMessage: {
+    color: "#FFFFFF",
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
   imageCredit: {
-    color: colors.muted,
+    color: "#4C6656",
     fontSize: 10,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: 2,
   },
   alsoHeardLabel: {
-    color: colors.muted,
+    color: "#1C543C",
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1.2,
@@ -985,40 +1190,54 @@ const styles = StyleSheet.create({
   birdRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F3F5",
-    borderRadius: 14,
-    padding: spacing.md,
+    backgroundColor: "#246247",
+    borderRadius: 8,
+    padding: 12,
   },
   birdText: { flex: 1 },
-  commonName: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  commonName: { color: "#FFFFFF", fontSize: 20, fontWeight: "800" },
   scientificName: {
-    color: colors.muted,
+    color: "#E6F0E7",
     fontSize: 13,
     fontStyle: "italic",
     marginTop: 3,
   },
-  confidence: { color: colors.primary, fontSize: 16, fontWeight: "800" },
-  empty: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    padding: spacing.md,
-    backgroundColor: "#F1F3F5",
-    borderRadius: 14,
+  confidence: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
   },
   directionNote: {
-    color: colors.muted,
+    color: "#4C6656",
     fontSize: 12,
     lineHeight: 17,
     paddingHorizontal: 2,
     marginTop: 2,
   },
   privacyNote: {
-    color: "#7A8388",
+    color: "#4C6656",
     fontSize: 11,
     lineHeight: 16,
     textAlign: "center",
     paddingHorizontal: spacing.xs,
     paddingBottom: spacing.md,
+  },
+  rhythmControls: {
+    gap: 6,
+    paddingBottom: spacing.md,
+  },
+  rhythmButton: {
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 7,
+  },
+  rhythmStart: { backgroundColor: "#07835A" },
+  rhythmStop: { backgroundColor: "#1C543C" },
+  disabledButton: { opacity: 0.58 },
+  rhythmButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });
