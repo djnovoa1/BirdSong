@@ -23,7 +23,12 @@ import {
 import * as Haptics from "expo-haptics";
 
 import { colors, spacing } from "@/constants/theme";
-import { checkBackendHealth, detectBirds, getApiUrl, type Species } from '@/services/birdnet';
+import {
+  checkBackendHealth,
+  detectBirds,
+  getApiUrl,
+  type Species,
+} from "@/services/birdnet";
 
 const MIN_RECORDING_MS = 3000;
 const BIN_SIZE = 15;
@@ -75,7 +80,9 @@ export default function HomeScreen() {
   const [heading, setHeading] = useState<number | null>(null);
   const [compassAccuracy, setCompassAccuracy] = useState<number | null>(null);
   const [savedBearing, setSavedBearing] = useState<number | null>(null);
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'ready' | 'offline'>('checking');
+  const [backendStatus, setBackendStatus] = useState<
+    "checking" | "ready" | "offline"
+  >("checking");
   const [analysisElapsed, setAnalysisElapsed] = useState(0);
   const [bins, setBins] = useState<SoundBin[]>(createBins);
   const binsRef = useRef<SoundBin[]>(createBins());
@@ -100,10 +107,11 @@ export default function HomeScreen() {
     }
   }, [status, recorderState.durationMillis, recorderState.metering]);
 
+  useEffect(() => {
     let isMounted = true;
     const check = async () => {
       const ready = await checkBackendHealth();
-      if (isMounted) setBackendStatus(ready ? 'ready' : 'offline');
+      if (isMounted) setBackendStatus(ready ? "ready" : "offline");
     };
     void check();
     const interval = setInterval(() => void check(), 15000);
@@ -115,18 +123,21 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!isAnalyzing) return;
-    const interval = setInterval(() => setAnalysisElapsed((seconds) => seconds + 1), 1000);
+    const interval = setInterval(
+      () => setAnalysisElapsed((seconds) => seconds + 1),
+      1000,
+    );
     return () => clearInterval(interval);
   }, [isAnalyzing]);
 
   async function refreshBackend() {
-    setBackendStatus('checking');
+    setBackendStatus("checking");
     const ready = await checkBackendHealth();
-    setBackendStatus(ready ? 'ready' : 'offline');
+    setBackendStatus(ready ? "ready" : "offline");
   }
 
   useEffect(() => {
-    if (!isRecording || Platform.OS === 'web') return;
+    if (!isRecording || Platform.OS === "web") return;
     const level = recorderState.metering;
     const currentHeading = headingRef.current;
     if (
@@ -204,8 +215,9 @@ export default function HomeScreen() {
         return;
       }
 
-      if (Platform.OS !== 'web' && !subscriptionRef.current) {
-        const locationPermission = await Location.requestForegroundPermissionsAsync();
+      if (Platform.OS !== "web" && !subscriptionRef.current) {
+        const locationPermission =
+          await Location.requestForegroundPermissionsAsync();
         if (locationPermission.granted) {
           subscriptionRef.current = await Location.watchHeadingAsync(
             (reading) => {
@@ -256,7 +268,7 @@ export default function HomeScreen() {
         throw new Error("The recording could not be saved. Please try again.");
 
       setAnalysisElapsed(0);
-      setStatus('analyzing');
+      setStatus("analyzing");
       const result = await detectBirds(uri);
       setSpecies(result.species);
       setStatus("done");
@@ -330,12 +342,20 @@ export default function HomeScreen() {
     }
   }
 
-  const displayedBearing = isRecording ? loudestBearing : savedBearing ?? loudestBearing;
-  const arrowRotation = displayedBearing !== null && heading !== null ? displayedBearing - heading : 0;
-  const cardinalCounterRotation = { transform: [{ rotate: `${heading ?? 0}deg` }] };
-  const compassLabel = displayedBearing === null
-    ? 'Rotate slowly while listening'
-    : `${directionName(displayedBearing)} · ${Math.round(displayedBearing)}°`;
+  const displayedBearing = isRecording
+    ? loudestBearing
+    : (savedBearing ?? loudestBearing);
+  const arrowRotation =
+    displayedBearing !== null && heading !== null
+      ? displayedBearing - heading
+      : 0;
+  const cardinalCounterRotation = {
+    transform: [{ rotate: `${heading ?? 0}deg` }],
+  };
+  const compassLabel =
+    displayedBearing === null
+      ? "Rotate slowly while listening"
+      : `${directionName(displayedBearing)} · ${Math.round(displayedBearing)}°`;
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -352,16 +372,40 @@ export default function HomeScreen() {
               onPress={refreshBackend}
               style={[
                 styles.serverPill,
-                backendStatus === 'ready' ? styles.serverReady : backendStatus === 'offline' ? styles.serverOffline : styles.serverChecking,
+                backendStatus === "ready"
+                  ? styles.serverReady
+                  : backendStatus === "offline"
+                    ? styles.serverOffline
+                    : styles.serverChecking,
               ]}
             >
-              <View style={[styles.serverDot, backendStatus === 'ready' ? styles.serverDotReady : backendStatus === 'offline' ? styles.serverDotOffline : styles.serverDotChecking]} />
-              <Text style={styles.serverText}>{backendStatus === 'ready' ? 'BirdNET ready' : backendStatus === 'offline' ? 'Server offline · tap to retry' : 'Checking server…'}</Text>
+              <View
+                style={[
+                  styles.serverDot,
+                  backendStatus === "ready"
+                    ? styles.serverDotReady
+                    : backendStatus === "offline"
+                      ? styles.serverDotOffline
+                      : styles.serverDotChecking,
+                ]}
+              />
+              <Text style={styles.serverText}>
+                {backendStatus === "ready"
+                  ? "BirdNET ready"
+                  : backendStatus === "offline"
+                    ? "Server offline · tap to retry"
+                    : "Checking server…"}
+              </Text>
             </Pressable>
           </View>
-          <Text style={styles.subtitle}>Listen for a bird. Find the direction.</Text>
-          {backendStatus === 'offline' && (
-            <Text style={styles.serverHelp}>Start the BirdSong backend on your computer. This app is checking {getApiUrl()}.</Text>
+          <Text style={styles.subtitle}>
+            Listen for a bird. Find the direction.
+          </Text>
+          {backendStatus === "offline" && (
+            <Text style={styles.serverHelp}>
+              Start the BirdSong backend on your computer. This app is checking{" "}
+              {getApiUrl()}.
+            </Text>
           )}
         </View>
 
@@ -377,12 +421,36 @@ export default function HomeScreen() {
               </Text>
             )}
           </View>
-          <View style={styles.compass} accessibilityLabel={`Estimated sound direction: ${compassLabel}`}>
-            <View style={[styles.dial, { transform: [{ rotate: `${-(heading ?? 0)}deg` }] }]}>
-              <Text style={[styles.cardinal, styles.north, cardinalCounterRotation]}>N</Text>
-              <Text style={[styles.cardinal, styles.east, cardinalCounterRotation]}>E</Text>
-              <Text style={[styles.cardinal, styles.south, cardinalCounterRotation]}>S</Text>
-              <Text style={[styles.cardinal, styles.west, cardinalCounterRotation]}>W</Text>
+          <View
+            style={styles.compass}
+            accessibilityLabel={`Estimated sound direction: ${compassLabel}`}
+          >
+            <View
+              style={[
+                styles.dial,
+                { transform: [{ rotate: `${-(heading ?? 0)}deg` }] },
+              ]}
+            >
+              <Text
+                style={[styles.cardinal, styles.north, cardinalCounterRotation]}
+              >
+                N
+              </Text>
+              <Text
+                style={[styles.cardinal, styles.east, cardinalCounterRotation]}
+              >
+                E
+              </Text>
+              <Text
+                style={[styles.cardinal, styles.south, cardinalCounterRotation]}
+              >
+                S
+              </Text>
+              <Text
+                style={[styles.cardinal, styles.west, cardinalCounterRotation]}
+              >
+                W
+              </Text>
               <View style={styles.compassInner} />
               {coveragePoints.map(({ index, left, top, sampled }) => (
                 <View
@@ -418,10 +486,10 @@ export default function HomeScreen() {
               : heading === null
                 ? "Allow compass access, then slowly turn in place as you listen."
                 : compassAccuracy === 0
-                  ? 'Compass needs calibration. Move your phone in a figure eight.'
-                : savedBearing !== null
-                  ? 'Direction saved. Turn the phone and follow the arrow back to where the sound came from.'
-                  : 'Turn the phone toward the sound; the arrow updates from the loudest direction heard.'}
+                  ? "Compass needs calibration. Move your phone in a figure eight."
+                  : savedBearing !== null
+                    ? "Direction saved. Turn the phone and follow the arrow back to where the sound came from."
+                    : "Turn the phone toward the sound; the arrow updates from the loudest direction heard."}
           </Text>
           <Text style={styles.coverageDetail}>
             {Platform.OS === "web"
@@ -448,7 +516,11 @@ export default function HomeScreen() {
             )}
           </View>
           <Text style={styles.listenHint}>
-            {isRecording ? 'Turn slowly through a full circle, then stop to identify.' : isAnalyzing ? `BirdNET is analyzing your recording · ${analysisElapsed}s` : 'Record at least 3 seconds. A longer, slow scan helps estimate direction.'}
+            {isRecording
+              ? "Turn slowly through a full circle, then stop to identify."
+              : isAnalyzing
+                ? `BirdNET is analyzing your recording · ${analysisElapsed}s`
+                : "Record at least 3 seconds. A longer, slow scan helps estimate direction."}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -559,6 +631,42 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 2,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  serverPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  serverReady: { backgroundColor: "#DCFCE7" },
+  serverOffline: { backgroundColor: "#FEE2E2" },
+  serverChecking: { backgroundColor: "#E5E7EB" },
+  serverDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  serverDotReady: { backgroundColor: "#16A34A" },
+  serverDotOffline: { backgroundColor: "#DC2626" },
+  serverDotChecking: { backgroundColor: "#9CA3AF" },
+  serverText: {
+    color: "#1F2937",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  serverHelp: {
+    color: colors.error,
+    fontSize: 12,
+    marginTop: 6,
   },
   title: {
     color: colors.text,
