@@ -26,7 +26,8 @@
         {
           "microphonePermission": "BirdSong uses the microphone to record birdsong so it can identify the species you hear."
         }
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true
