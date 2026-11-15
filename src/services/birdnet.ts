@@ -17,6 +17,11 @@ export type DetectResponse = {
   detections: Detection[];
 };
 
+export type BackendHealth = {
+  status: string;
+  model_loaded: boolean;
+};
+
 // The BirdSong backend (uvicorn), not the Expo dev server, which uses 8081.
 const API_PORT = 8000;
 
@@ -34,6 +39,17 @@ export function getApiUrl(): string {
 
   const devHost = Constants.expoConfig?.hostUri?.split(':')[0];
   return `http://${devHost ?? 'localhost'}:${API_PORT}`;
+}
+
+export async function checkBackendHealth(): Promise<boolean> {
+  try {
+    const response = await fetch(`${getApiUrl()}/health`, { cache: 'no-store' });
+    if (!response.ok) return false;
+    const health = (await response.json()) as BackendHealth;
+    return health.status === 'ok' && health.model_loaded;
+  } catch {
+    return false;
+  }
 }
 
 export async function detectBirds(

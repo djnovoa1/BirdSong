@@ -15,6 +15,7 @@ import birdnet
 import numpy as np
 import soundfile as sf
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 # Formats BirdNET can read directly.
 NATIVE_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
@@ -38,6 +39,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="BirdSong API", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=(
+        r"^https?://(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+        r"192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$"
+    ),
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
