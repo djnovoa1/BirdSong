@@ -245,7 +245,14 @@ export default function HomeScreen() {
     }
   }
 
+  const stopRequested = useRef(false);
+
+  async function stopBirdRhythm() {
+    stopRequested.current = true;
+  }
+
   async function playBirdRhythm() {
+    stopRequested.current = false;
     const levels = levelsRef.current;
 
     if (levels.length < 3) return;
@@ -276,14 +283,21 @@ export default function HomeScreen() {
     let lastTime = peaks[0]?.time ?? 0;
 
     for (const peak of peaks.slice(0, 30)) {
+      if (stopRequested.current) break;
+
       const delay = peak.time - lastTime;
 
       await new Promise<void>((resolve) => setTimeout(resolve, delay));
+
+      if (stopRequested.current) break;
 
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
       if (peak.db > baseline + 12) {
         await new Promise<void>((resolve) => setTimeout(resolve, 75));
+
+        if (stopRequested.current) break;
+
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       }
 
@@ -486,6 +500,11 @@ export default function HomeScreen() {
       <Button
         title="Feel the Birdsong"
         onPress={playBirdRhythm}
+        disabled={status !== "done"}
+      />
+      <Button
+        title="Stop Birdsong"
+        onPress={stopBirdRhythm}
         disabled={status !== "done"}
       />
     </ScrollView>
